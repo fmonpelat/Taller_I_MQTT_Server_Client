@@ -13,14 +13,14 @@ fn main() {
             println!("Successfully connected to server in port {}", server_port);
 
             let pingmsg = b"Ping...";
-            stream.write(pingmsg).unwrap();
+            stream.write_all(pingmsg).unwrap();
 
             let stream_arc = Arc::new(Mutex::new(stream));
             let _stream = Arc::clone(&stream_arc);
 
             let _handle_write = thread::spawn(move || loop {
                 println!("Sent Ping, awaiting reply...");
-                stream_arc.lock().unwrap().write(pingmsg).unwrap();
+                stream_arc.lock().unwrap().write_all(pingmsg).unwrap();
 
                 thread::sleep(time::Duration::from_millis(2000));
             });
