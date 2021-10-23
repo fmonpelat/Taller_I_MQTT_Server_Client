@@ -26,7 +26,7 @@ fn main() {
             });
 
             let handle_read = thread::spawn(move || loop {
-                let mut buff = [0 as u8; 7];
+                let mut buff = [0_u8; 7];
                 match _stream.lock().unwrap().read_exact(&mut buff) {
                     Ok(_) => {
                         match from_utf8(&buff) {
