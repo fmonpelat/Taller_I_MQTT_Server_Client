@@ -4,7 +4,7 @@ use std::str::from_utf8;
 use std::{thread, time};
 
 fn handle_client(mut stream: TcpStream) {
-    let mut buff = [0 as u8; 7]; // using 50 u8 buffer
+    let mut buff = [0_u8; 7]; // using 50 u8 buffer
 
     while match stream.read(&mut buff) {
         Ok(_size) => {
@@ -14,7 +14,7 @@ fn handle_client(mut stream: TcpStream) {
                     match packet {
                         "Ping..." => {
                             println!("Ping received! \n");
-                            stream.write(b"Pong...").unwrap();
+                            stream.write_all(b"Pong...").unwrap();
                         }
                         _ => println!("Not understood this packet: {}\n", packet),
                     }
