@@ -1,20 +1,26 @@
-use std::thread;
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
-use std::str;
+use std::str::from_utf8;
+use std::{thread, time};
 
 
 fn handle_client(mut stream: TcpStream) {
-    let mut data = [0 as u8; 50]; // using 50 byte buffer
-    while match stream.read(&mut data) {
+    let mut buff = [0 as u8; 7]; // using 50 u8 buffer
+    
+    while match stream.read(&mut buff) {
         Ok(_size) => {
             //  send pong if ping msg is received
-            match str::from_utf8(&data) {
-                Ok(v) => {
-                    if v == "Ping.." {
-                        println!("Ping received! v = {}\n", v);
-                        stream.write(b"Pong..").unwrap();
+            match from_utf8(&buff) {
+                Ok(packet) => {
+                    match packet {
+                        "Ping..." => {
+                            println!("Ping received! \n");
+                            stream.write(b"Pong...").unwrap();
+                        },
+                        _ => println!("Not understood this packet: {}\n", packet),
                     }
+                    thread::sleep(time::Duration::from_millis(2000));
+                    true
                 },
                 Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
             };

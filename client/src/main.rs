@@ -2,6 +2,8 @@ use std::net::{TcpStream};
 use std::io::{Read, Write};
 use std::str::from_utf8;
 use std::{thread, time};
+use std::sync::{Arc, Mutex};
+
 
 fn main() {
     let server_host = String::from("localhost");
@@ -11,34 +13,49 @@ fn main() {
         Ok(mut stream) => {
             println!("Successfully connected to server in port {}", server_port);
 
-            let msg = b"Ping..";
+            let pingmsg = b"Ping...";
+            stream.write(pingmsg).unwrap();
 
-            stream.write(msg).unwrap();
-            println!("Sent Ping, awaiting reply...");
-
-            let mut data = [0 as u8; 6]; // using 6 byte buffer
-            match stream.read_exact(&mut data) {
-                Ok(_) => {
-                    match from_utf8(&data) {
-                        Ok(r_msg) => {
-                            if r_msg == "Pong.." {
-                                println!("Pong received!");
-                                thread::sleep(time::Duration::from_millis(2000));
-                                stream.write(msg).unwrap();
-                                println!("Sent Ping, awaiting reply...");
-                            } else {
-                                println!("Unexpected reply: {}", r_msg);
-                            }
-                            true
-                        },
-                        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-                    };
-                },
-                Err(e) => {
-                    println!("Failed to receive data: {}", e);
+            let stream_arc = Arc::new(Mutex::new(stream));
+            let _stream = Arc::clone(& stream_arc);
+            
+            let _handle_write = thread::spawn(move|| {
+                loop {
+                    println!("Sent Ping, awaiting reply...");
+                    stream_arc.lock().unwrap().write(pingmsg).unwrap();
+                    
+                    thread::sleep(time::Duration::from_millis(2000));
                 }
+            });
+   
+        let handle_read = thread::spawn(move|| {
+            loop {
+                let mut buff = [0 as u8; 7]; 
+                match _stream.lock().unwrap().read_exact(&mut buff) {
+                    Ok(_) => {
+                        match from_utf8(&buff) {
+                            Ok(packet) => {
+                                println!("[client] buff:{}",from_utf8(&buff).unwrap());
+                                match packet {
+                                    "Pong..." => {
+                                        println!("Pong received!");
+                                    }
+                                    _ => println!("Unexpected reply: {}\n", packet),
+                                }
+                                true
+                            },
+                            Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+                        };
+                    },
+                    Err(e) => {
+                        println!("Failed to receive data: {}", e);
+                    }
+                }
+                thread::sleep(time::Duration::from_millis(2000));
             }
-        },
+        });
+        let _res = handle_read.join();
+        }
         Err(e) => {
             println!("Failed to connect: {}", e);
         }
