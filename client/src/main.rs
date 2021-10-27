@@ -1,16 +1,17 @@
 use std::io::{Read, Write};
-use std::net::TcpStream;
 use std::str::from_utf8;
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
+mod client;
+use crate::client::Client;
+
 
 fn main() {
-    let server_host = String::from("localhost");
-    let server_port = "3333";
+    let client = Client::new("localhost","3333");
 
-    match TcpStream::connect(server_host + ":" + server_port) {
+    match client.connect() {
         Ok(mut stream) => {
-            println!("Successfully connected to server in port {}", server_port);
+            println!("Successfully connected to server in port {}", client.get_server_port());
 
             let pingmsg = b"Ping...";
             stream.write_all(pingmsg).unwrap();
