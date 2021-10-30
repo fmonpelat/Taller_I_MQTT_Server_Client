@@ -1,12 +1,12 @@
-use std::io::{Read, Write};
+use std::io::{Read, Write, Result};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::str::from_utf8;
 use std::{thread, time};
 
-fn handle_client(mut stream: TcpStream) {
+fn handle_client(mut stream: TcpStream) -> Result<()> {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
 
-    while match stream.read(&mut buff) {
+    Ok(while match stream.read(&mut buff) {
         Ok(_size) => {
             //  send pong if ping msg is received
             match from_utf8(&buff) {
@@ -14,7 +14,10 @@ fn handle_client(mut stream: TcpStream) {
                     match packet {
                         "Ping..." => {
                             println!("Ping received! \n");
-                            stream.write_all(b"Pong...").unwrap();
+                            if let Err(e) = stream.write_all(b"Pong...") {
+                                println!("Client disconnect");
+                                return Err(e) // Send client id when write_all fails
+                            }
                         }
                         _ => println!("Not understood this packet: {}\n", packet),
                     }
@@ -33,7 +36,7 @@ fn handle_client(mut stream: TcpStream) {
             stream.shutdown(Shutdown::Both).unwrap();
             false
         }
-    } {}
+    } {})
 }
 
 fn main() {
