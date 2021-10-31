@@ -1,12 +1,15 @@
-use std::io::{Read, Write};
+use core::time;
+use std::io::{Read, Result, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::str::from_utf8;
-use std::{thread, time};
+use std::{thread};
+mod logger;
+use crate::logger::{Logger, Logging};
 
-fn handle_client(mut stream: TcpStream) {
+fn handle_client(mut stream: TcpStream) -> Result<()> {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
 
-    while match stream.read(&mut buff) {
+    Ok(while match stream.read(&mut buff) {
         Ok(_size) => {
             //  send pong if ping msg is received
             match from_utf8(&buff) {
@@ -14,7 +17,10 @@ fn handle_client(mut stream: TcpStream) {
                     match packet {
                         "Ping..." => {
                             println!("Ping received! \n");
-                            stream.write_all(b"Pong...").unwrap();
+                            if let Err(e) = stream.write_all(b"Pong...") {
+                                println!("Client disconnect");
+                                return Err(e) // Send client id when write_all fails
+                            }
                         }
                         _ => println!("Not understood this packet: {}\n", packet),
                     }
@@ -33,19 +39,27 @@ fn handle_client(mut stream: TcpStream) {
             stream.shutdown(Shutdown::Both).unwrap();
             false
         }
-    } {}
+    } {})
 }
 
 fn main() {
+    let file_name = "../log.txt";
+    let logger = Logger::new(file_name);
+
     let server_address = String::from("0.0.0.0");
     let server_port = "3333";
+
     let listener = TcpListener::bind(server_address + ":" + server_port).unwrap();
     // accept connections and process them, spawning a new thread for each one
+    logger.debug("start binding".to_string());
     println!("Server listening on port {}", server_port);
     for stream in listener.incoming() {
+        logger.debug("start listening to clients".to_string());
         match stream {
             Ok(stream) => {
-                println!("New connection: {}", stream.peer_addr().unwrap());
+                let new_conn_msg = format!("New connection: {}",stream.peer_addr().unwrap());
+                println!("New connection: {}", new_conn_msg);
+                logger.debug(new_conn_msg);
                 thread::spawn(move || {
                     // connection succeeded
                     handle_client(stream)
