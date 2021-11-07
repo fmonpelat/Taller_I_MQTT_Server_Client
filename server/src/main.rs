@@ -5,7 +5,7 @@ use std::str::from_utf8;
 use std::{thread};
 mod logger;
 use crate::logger::{Logger, Logging};
-mod mqttpacket;
+mod mqttPacket;
 
 fn handle_client(mut stream: TcpStream) -> Result<()> {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
