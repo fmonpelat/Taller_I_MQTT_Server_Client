@@ -1,3 +1,4 @@
+
 #[allow(dead_code)]
 pub mod control_type {
     pub const CONNECT: u8 = 0x10;
@@ -28,14 +29,14 @@ pub mod control_flags {
 
 #[allow(dead_code)]
 pub mod connect_flags {
-    pub const USERNAME: u8 = 0x7;
-    pub const PASSWORD: u8 = 0x6;
-    pub const WILL_RETAIN: u8 = 0x5;
-    pub const WILL_QOS1: u8 = 0x4;
-    pub const WILL_QOS2: u8 = 0x3;
-    pub const WILL: u8 = 0x2;
-    pub const CLEAN_SESSION: u8 = 0x1;
-    pub const RESERVED: u8 = 0x0;
+    pub const USERNAME: u8 = 0x80;
+    pub const PASSWORD: u8 = 0x40;
+    pub const WILL_RETAIN: u8 = 0x20;
+    pub const WILL_QOS1: u8 = 0x10;
+    pub const WILL_QOS2: u8 = 0x08;
+    pub const WILL: u8 = 0x04;
+    pub const CLEAN_SESSION: u8 = 0x02;
+    pub const RESERVED: u8 = 0x01;
 }
 
 
@@ -140,16 +141,57 @@ pub trait PacketPayload {
 
 impl PacketPayload for Payload {
     fn value(&self) -> Vec<u8> {
-        let mut res: Vec<u8> = Vec::with_capacity(1024);
-        res.extend(self.client_identifier.as_bytes());
-        res.extend(self.will_topic.as_bytes());
-        res.extend(self.will_message.as_bytes());
-        res.extend(self.user_name.as_bytes());
-        res.extend(self.password.as_bytes());
-        if res.len() == 0 {
+        let mut payload_vec: Vec<u8> = Vec::with_capacity(1024);
+
+        let client_identifier_ = (self.client_identifier.len() as u16).to_be_bytes();
+        payload_vec.extend(
+            if self.client_identifier.len() > 0 {
+                client_identifier_.iter()
+            } else { [].iter() }
+        );
+        payload_vec.extend(self.client_identifier.as_bytes());
+
+
+        let will_topic_ = (self.will_topic.len() as u16).to_be_bytes();
+        payload_vec.extend(
+            if self.will_topic.len() > 0 {
+                will_topic_.iter()
+            } else { [].iter() }
+        );
+        payload_vec.extend(self.will_topic.as_bytes());
+
+
+        let will_message_ = (self.will_message.len() as u16).to_be_bytes();
+        payload_vec.extend(
+            if self.will_message.len() > 0 {
+                will_message_.iter()
+            } else { [].iter() }
+        );
+        payload_vec.extend(self.will_message.as_bytes());
+
+
+        let user_name_ = (self.user_name.len() as u16).to_be_bytes();
+        payload_vec.extend(
+            if self.user_name.len() > 0 {
+                user_name_.iter()
+            } else { [].iter() }
+        );
+        payload_vec.extend(self.user_name.as_bytes());
+
+
+        let password_ = (self.password.len() as u16).to_be_bytes();
+        payload_vec.extend(
+                if self.password.len() > 0 {
+                    password_.iter()
+                } else { [].iter() }
+        );
+        payload_vec.extend(self.password.as_bytes());
+
+
+        if payload_vec.len() == 0 {
             return vec![];
         }
-        return res;
+        return payload_vec;
     }
 }
 #[derive(Debug, Default)]
@@ -228,8 +270,8 @@ mod tests {
         use super::*;
         #[test]
         fn header_connect_value() {
-            let control_type = control_type::CONNECT;
-            let control_flags = control_flags::RESERVED;
+            let control_type = control_type::CONNECT; // 0x10
+            let control_flags = control_flags::RESERVED; // 0x00
             let remaining_length_0 = 0x00;
             let header_stub = vec![control_type + control_flags, remaining_length_0];
             let header = Header {
@@ -237,7 +279,6 @@ mod tests {
                 control_flags: control_flags,
                 remaining_length_0: remaining_length_0,
             };
-            
             let value: Vec<u8> = header.value();
             assert!(value.len() == header_stub.len());
             assert!(header_stub.eq(&value));
@@ -282,16 +323,18 @@ mod tests {
         use super::*;
         #[test]
         fn test_connect_packet() {
-            let connect_head_stub = vec![16, 0, 0, 4, 77, 81, 84, 84, 4, 1, 0, 0];
+            let connect_head_stub = vec![16, 0, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
             let client_identifier = String::from("testId");
             let connect_stub: Vec<u8> = connect_head_stub.iter().copied().chain(
-                client_identifier.as_bytes().iter().copied()
+                (client_identifier.len() as u16).to_be_bytes().iter().copied().chain(
+                    client_identifier.as_bytes().iter().copied()
+                )
             ).collect();
             let packet = Packet::new();
             let packet = packet.connect(client_identifier);
             let value = packet.value();
             // println!("value connect: {:?}", value);
-
+            // println!("connect stub: {:?}", connect_stub);
             assert_eq!(value.len(), connect_stub.len());
             assert!(connect_stub.eq(&value));
         }
