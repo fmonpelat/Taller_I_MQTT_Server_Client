@@ -17,7 +17,6 @@ fn main() -> Result<(), ()> {
             return Err(())
         }
     }
-    logger.info("Server terminated.".to_string());
     Ok(())
 }
 

@@ -58,31 +58,30 @@ impl<'a> Server<'a> {
 
   pub fn connect(&self) -> Result<()> {
 	self.logger.debug("ready to binding".to_string());
-    let listener = TcpListener::bind(self.server_address.to_owned() + "self.server_port_port")?;
+    self.logger.info(format!("server address: {:?}",self.server_address.to_owned() + ":" + self.server_port));
+    let listener = TcpListener::bind(self.server_address.to_owned() + ":" + self.server_port)?;
     // accept connections and process them, spawning a new thread for each one
     self.logger.debug("start binding".to_string());
     println!("Server listening on port {}", self.server_port);
     for stream in listener.incoming() {
-        self.logger.debug("start listening to clients".to_string());
+        self.logger.info("start listening to clients".to_string());
         match stream {
             Ok(stream) => {
-                let new_conn_msg = format!("New connection: {}",stream.peer_addr().unwrap());
-                println!("New connection: {}", new_conn_msg);
-                self.logger.debug(new_conn_msg);
+                self.logger.info(format!("New connection: {}",stream.peer_addr().unwrap()));
                 thread::spawn(move || {
                     // connection succeeded
                     Server::<'a>::handle_client(stream)
                 });
             }
-            Err(e) => {
+            Err(e) => { /* connection failed */
                 println!("Error: {}", e);
                 break
-                /* connection failed */
             }
         }
     }
     // close the socket server
     drop(listener);
+    self.logger.info("Server terminated.".to_string()); //ver porque no se escribe esta linea no se escribe en el log
     Ok(())
 
   }
