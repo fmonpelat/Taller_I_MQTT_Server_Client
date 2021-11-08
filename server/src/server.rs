@@ -1,5 +1,4 @@
 use core::time;
-use std::error::Error;
 use std::io::{Read, Result, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::str::from_utf8;
@@ -13,15 +12,15 @@ pub struct Server<'a> {
   }
 
 impl<'a> Server<'a> {
-  pub fn new(server_address: &'a str, server_port: &'a str, file_source: &'a str) -> Self {
+  pub fn new(server_address: &'a str, server_port: &'a str, file_source: & str) -> Self {
     Server{
-      server_address: server_address,
-      server_port: server_port,
-			logger: Logger::new(file_source),
+      server_address,
+      server_port,
+	  logger: Logger::new(file_source),
     }
   }
 
-	fn handle_client<'b:'a>(&self, mut stream: &'b TcpStream) -> Result<()> {
+  fn handle_client(mut stream: TcpStream) -> Result<()> {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
 
     Ok(while match stream.read(&mut buff) {
@@ -57,18 +56,9 @@ impl<'a> Server<'a> {
     } {})
 	}
 
-  pub fn connect(&self) -> () {
-	
-		//if let listener = TcpListener::bind(self.server_address.to_owned() + "self.server_port_port") {
-		//	Ok() =>{
-//
-		//	}
-		//	Err(e) =>{
-		//		println!("Error: {}", e);
-		//	}
-		//	
-		//} 
-    let listener = TcpListener::bind(self.server_address.to_owned() + "self.server_port_port").unwrap();
+  pub fn connect(&self) -> Result<()> {
+	self.logger.debug("ready to binding".to_string());
+    let listener = TcpListener::bind(self.server_address.to_owned() + "self.server_port_port")?;
     // accept connections and process them, spawning a new thread for each one
     self.logger.debug("start binding".to_string());
     println!("Server listening on port {}", self.server_port);
@@ -81,17 +71,19 @@ impl<'a> Server<'a> {
                 self.logger.debug(new_conn_msg);
                 thread::spawn(move || {
                     // connection succeeded
-                    self.handle_client(&stream)
+                    Server::<'a>::handle_client(stream)
                 });
             }
             Err(e) => {
                 println!("Error: {}", e);
+                break
                 /* connection failed */
             }
         }
     }
     // close the socket server
     drop(listener);
+    Ok(())
 
   }
 }

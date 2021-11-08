@@ -3,14 +3,22 @@ mod server;
 use crate::logger::{Logger, Logging};
 use crate::server::Server;
 
-fn main() {
+fn main() -> Result<(), ()> {
     let file_name = "../log.txt";
     let logger = Logger::new(file_name);
 
     let server = Server::new("0.0.0.0","3333", file_name);
-    server.connect();
-
+    match server.connect(){
+        Ok(_)=> {
+            logger.info("Successfully connect to clients.".to_string());
+        }
+        Err(e) => {
+            logger.info(format!("Unexpected error{:?}",e));
+            return Err(())
+        }
+    }
     logger.info("Server terminated.".to_string());
+    Ok(())
 }
 
 #[cfg(test)]
