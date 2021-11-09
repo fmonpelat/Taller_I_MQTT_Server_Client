@@ -10,10 +10,19 @@ pub mod connect_flags {
     pub const CLEAN_SESSION: u8 = 0x02;
     pub const RESERVED: u8 = 0x01;
 }
+
+pub mod connect_return {
+    pub const ACCEPTED: u8 = 0x00;
+    pub const UNACCEPTABLE_PROTOCOL_VERSION: u8 = 0x01;
+    pub const IDENTIFIER_REJECTED: u8 = 0x02;
+    pub const SERVER_UNAVAILABLE: u8 = 0x03;
+    pub const BAD_USERNAME_OR_PASSWORD: u8 = 0x04;
+    pub const NOT_AUTHORIZED: u8 = 0x05; 
+}
   
 #[derive(Debug, Default)]
 pub struct VariableHeader {
-    pub protocol_name: [u8;6], // must be allways: [0,4,'M','Q','T','T']
+    pub protocol_name: Vec<u8>, // must be allways: [0,4,'M','Q','T','T']
     pub protocol_level: u8, // for spec 3.1.1 mqtt the value of protocol is 4 (0x04)
     pub connect_flags: u8, // 1 byte - note: to set use CONNECTFLAGS enum
     pub keep_alive: u16, // 2 bytes
@@ -26,8 +35,8 @@ pub trait PacketVariableHeader {
 impl PacketVariableHeader for VariableHeader {
     fn value(&self) -> Vec<u8> {
         let mut variable_header_vec: Vec<u8> = Vec::with_capacity(12);
-        for i in self.protocol_name {
-            variable_header_vec.push(i);
+        for i in &self.protocol_name {
+            variable_header_vec.push(*i);
         }
         variable_header_vec.push(self.protocol_level);
         variable_header_vec.push(self.connect_flags);
@@ -43,7 +52,7 @@ mod tests {
     
     #[test]
     fn variable_header_value() {
-        let protocol_name = [0, 4, 'M' as u8, 'Q' as u8, 'T' as u8, 'T' as u8];
+        let protocol_name = [0x00, 0x04, b'M', b'Q', b'T', b'T'].to_vec();
         let protocol_level = 0x04;
         let connect_flags = connect_flags::CLEAN_SESSION;
         let keep_alive = 0x00;
@@ -58,7 +67,7 @@ mod tests {
             keep_alive: keep_alive,
         };
         let value: Vec<u8> = variable_header.value();
-        println!("variable header value: {:?}", value);
+        // println!("variable header value: {:?}", value);
         assert!(value.len() == vh_stub.len());
         assert!(vh_stub.eq(&value));
     }

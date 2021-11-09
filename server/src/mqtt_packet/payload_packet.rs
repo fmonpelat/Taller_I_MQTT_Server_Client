@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn payload_connect_value() {
-        let client_identifier = String::from("test");
+        let client_identifier = String::from("testing");
         let len_stub = client_identifier.len() + 2;
         let mut stub = vec![0];
         stub.push(client_identifier.len() as u8);

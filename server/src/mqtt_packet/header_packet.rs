@@ -31,7 +31,7 @@ pub struct Header {
     // total length of 4 bytes (16 bits)
     pub control_type: u8, // msb byte
     pub control_flags: u8, // lsb byte
-    pub remaining_length_0: u8, // 1 byte
+    pub remaining_length_0: u32, // 4 byte
 }
 // traits and impl for header
 pub trait PacketHeader {
@@ -39,6 +39,7 @@ pub trait PacketHeader {
     fn get_cmd_flags(&self) -> u8;
     fn decode_remaining_length(&self) -> u32;
     fn encode_remaining_header(&self, x: u32) -> u32;
+    fn set_remaining_length(&mut self, x: u32);
     fn value(&self) -> Vec<u8>;
 }
 
@@ -47,7 +48,10 @@ impl PacketHeader for Header {
     fn value(&self) -> Vec<u8> {
         let mut header_vec: Vec<u8> = Vec::with_capacity(3);
         header_vec.push(self.get_cmd_type() + self.get_cmd_flags());
-        header_vec.push(self.remaining_length_0);
+        header_vec.push((self.remaining_length_0 >> 24) as u8);
+        header_vec.push((self.remaining_length_0 >> 16) as u8);
+        header_vec.push((self.remaining_length_0 >> 8) as u8);
+        header_vec.push(self.remaining_length_0 as u8);
         return header_vec;
     }
 
@@ -61,7 +65,7 @@ impl PacketHeader for Header {
 
     fn decode_remaining_length(&self) -> u32 {
         let mut multiplier = 1;
-        let mut value = 0;
+        let mut value = self.remaining_length_0;
         while (self.remaining_length_0 & 128) != 0 {
             value += (self.remaining_length_0 & 127) * multiplier;
             multiplier *= 128;
@@ -84,6 +88,12 @@ impl PacketHeader for Header {
         }
         return digit;
     }
+
+    fn set_remaining_length(&mut self, x: u32) {
+        let length = self.encode_remaining_header(x);
+        println!("remaining length: {}", length);
+        self.remaining_length_0 = length;
+    }
 }
 
 #[cfg(test)]
@@ -94,8 +104,14 @@ mod tests {
     fn header_connect_value() {
         let control_type = control_type::CONNECT; // 0x10
         let control_flags = control_flags::RESERVED; // 0x00
-        let remaining_length_0 = 0x00;
-        let header_stub = vec![control_type + control_flags, remaining_length_0];
+        let remaining_length_0 = 0 as u32;
+        let header_stub = vec![
+            control_type + control_flags,
+            (remaining_length_0 >> 24) as u8,
+            (remaining_length_0 >> 16) as u8,
+            (remaining_length_0 >> 8) as u8,
+            remaining_length_0 as u8
+        ];
         let header = Header {
             control_type: control_type,
             control_flags: control_flags,
