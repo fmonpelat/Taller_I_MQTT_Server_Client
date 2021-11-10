@@ -46,6 +46,26 @@ impl PacketVariableHeader for VariableHeader {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct VariableHeaderConnack {
+    pub acknoledge_flags: u8, // 1 byte
+    pub return_code: u8, // 1 byte
+}
+
+pub trait PacketVariableHeaderConnack {
+    fn value(&self) -> Vec<u8>;
+}
+
+impl PacketVariableHeaderConnack for VariableHeaderConnack {
+    fn value(&self) -> Vec<u8> {
+        let mut variable_header_vec: Vec<u8> = Vec::with_capacity(2);
+        variable_header_vec.push(self.acknoledge_flags);
+        variable_header_vec.push(self.return_code as u8);
+        return variable_header_vec;
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -65,6 +85,22 @@ mod tests {
             protocol_level: protocol_level,
             connect_flags: connect_flags,
             keep_alive: keep_alive,
+        };
+        let value: Vec<u8> = variable_header.value();
+        // println!("variable header value: {:?}", value);
+        assert!(value.len() == vh_stub.len());
+        assert!(vh_stub.eq(&value));
+    }
+
+    #[test]
+    fn variable_header_connack_value() {
+        let acknoledge_flags = 0x00;
+        let return_code = connect_return::ACCEPTED;
+        let vh_stub: Vec<u8> = [acknoledge_flags, return_code as u8].to_vec();
+        
+        let variable_header = VariableHeaderConnack {
+            acknoledge_flags: acknoledge_flags,
+            return_code: return_code,
         };
         let value: Vec<u8> = variable_header.value();
         // println!("variable header value: {:?}", value);

@@ -1,26 +1,46 @@
 mod header_packet;
 use header_packet::{control_flags, control_type, Header, PacketHeader};
 mod variable_header_packet;
-use variable_header_packet::{connect_flags, connect_return, VariableHeader, PacketVariableHeader};
+use variable_header_packet::{connect_flags, connect_return, VariableHeader, PacketVariableHeader, VariableHeaderConnack};
 mod payload_packet;
 use payload_packet::{Payload, PacketPayload};
 
 #[derive(Debug, Default)]
-pub struct Packet {
+pub struct Packet<T> {
     header: Header,
-    variable_header: VariableHeader,
+    variable_header: T,
     payload: Payload,
 }
 
-pub trait ModPacket {
-    fn new() -> Packet;
-    fn connect(&self, client_identifier: String) -> Packet;
-    fn connack(&self) -> Packet;
+pub trait ModPacket<T> {
+    fn new() -> Packet<T>;
+    fn connect(&self, client_identifier: String) -> Packet<VariableHeader>;
+    fn connack(&self) -> Packet<VariableHeaderConnack>;
     fn value(&self) -> Vec<u8>; // this gives us the bytestream directly to send through stream
 }
      
-impl ModPacket for Packet {
-    fn connect(&self, client_identifier: String) -> Packet {
+impl<T: variable_header_packet::PacketVariableHeader> Packet<VariableHeader> {
+    fn new() -> Packet<VariableHeader> {
+        Packet {
+            header: Header::default(),
+            variable_header: VariableHeader::default(),
+            payload: Payload::default(),
+        }
+    }
+}
+
+impl<T: variable_header_packet::PacketVariableHeaderConnack> Packet<VariableHeaderConnack> {
+    fn new() -> Packet<VariableHeaderConnack> {
+        Packet {
+            header: Header::default(),
+            variable_header: VariableHeaderConnack::default(),
+            payload: Payload::default(),
+        }
+    }    
+}
+
+impl<T> ModPacket<T> for Packet<T> {
+    fn connect(&self, client_identifier: String) -> Packet<VariableHeader> {
         let header = Header {
             control_type: control_type::CONNECT, // 0x10
             control_flags: control_flags::RESERVED, // 0x00
@@ -52,17 +72,17 @@ impl ModPacket for Packet {
         return packet;
     }
 
-    fn connack(&self) -> Packet {
+    fn connack(&self) -> Packet<VariableHeaderConnack> {
         let connack_remaining_length = 0x02; // for connack the remaining length is 2
         let header = Header {
             control_type: control_type::CONNACK,
             control_flags: control_flags::RESERVED,
             remaining_length_0: connack_remaining_length,
         };
-        let protocol_name = [0x00, connect_return::ACCEPTED, b'M', b'Q', b'T', b'T'].to_vec();
-        let variable_header = VariableHeader {
-            protocol_name: protocol_name,
-            ..VariableHeader::default()
+        let protocol_name = [0x00, connect_return::ACCEPTED].to_vec();
+        let variable_header = VariableHeaderConnack {
+            acknoledge_flags: 0x00,
+            return_code: connect_return::ACCEPTED,
         };
         // empty payload
         let payload = Payload {
@@ -88,15 +108,14 @@ impl ModPacket for Packet {
         return res;
     }
 
-    fn new() -> Packet {
-        Packet {
-            header: Header::default(),
-            variable_header: VariableHeader::default(),
-            payload: Payload::default(),
-        }
-    }
+    // fn new() -> Packet<T> {
+    //     Packet {
+    //         header: Header::default(),
+    //         variable_header: [].to_vec(),
+    //         payload: Payload::default(),
+    //     }
+    // }
 }
-
 
 #[cfg(test)]
 mod tests {
