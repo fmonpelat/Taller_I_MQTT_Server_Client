@@ -2,27 +2,27 @@ use core::time;
 use std::io::{Read, Result, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::str::from_utf8;
+use std::sync::{Arc, Mutex};
 use std::{thread};
 use crate::logger::{Logger, Logging};
 
-pub struct Server<'a> {
-	server_address: &'a str, 
-  server_port: &'a str,
-	logger: Logger,   
+pub struct Server {
+	server_address: String, 
+  server_port: String,
+	logger: Arc<Logger>,   
   }
 
-impl<'a> Server<'a> {
-  pub fn new(server_address: &'a str, server_port: &'a str, file_source: & str) -> Self {
+impl Server {
+  pub fn new(server_address: String, server_port: String, file_source: & str) -> Self {
     Server{
       server_address,
       server_port,
-	  logger: Logger::new(file_source),
+	    logger: Arc::new(Logger::new(file_source)),
     }
   }
 
-  fn handle_client(mut stream: TcpStream) -> Result<()> {
+  fn handle_client( stream: Arc<TcpStream>, logger: Arc<Logger>) -> Result<()> {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
-
     Ok(while match stream.read(&mut buff) {
         Ok(_size) => {
             //  send pong if ping msg is received
@@ -36,7 +36,7 @@ impl<'a> Server<'a> {
                                 return Err(e) // Send client id when write_all fails
                             }
                         }
-                        _ => println!("Not understood this packet: {}\n", packet),
+                        _ => logger.info(format!("Not understood this packet: {}\n", packet)),
                     }
                     thread::sleep(time::Duration::from_millis(2000));
                     true
@@ -56,10 +56,10 @@ impl<'a> Server<'a> {
     } {})
 	}
 
-  pub fn connect(&self) -> Result<()> {
+  pub fn connect(& mut self) -> Result<()> {
 	self.logger.debug("ready to binding".to_string());
-    self.logger.info(format!("server address: {:?}",self.server_address.to_owned() + ":" + self.server_port));
-    let listener = TcpListener::bind(self.server_address.to_owned() + ":" + self.server_port)?;
+    self.logger.info(format!("server address: {:?}",self.server_address.to_owned() + ":" + &self.server_port));
+    let listener = TcpListener::bind(self.server_address.to_owned() + ":" + &self.server_port)?;
     // accept connections and process them, spawning a new thread for each one
     self.logger.debug("start binding".to_string());
     println!("Server listening on port {}", self.server_port);
@@ -68,9 +68,14 @@ impl<'a> Server<'a> {
         match stream {
             Ok(stream) => {
                 self.logger.info(format!("New connection: {}",stream.peer_addr().unwrap()));
+
+                let client = Arc::new(Mutex::new(stream));
+                let client_clone= client.clone();
+                
                 thread::spawn(move || {
                     // connection succeeded
-                    Server::<'a>::handle_client(stream)
+                    let logger = self.logger.clone();
+                    Server::handle_client(client_clone.lock().unwrap(),logger)
                 });
             }
             Err(e) => { /* connection failed */
