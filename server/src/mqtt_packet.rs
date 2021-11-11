@@ -1,7 +1,7 @@
 mod header_packet;
 use header_packet::{control_flags, control_type, Header, PacketHeader};
 mod variable_header_packet;
-use variable_header_packet::{connect_flags, connect_return, VariableHeader, PacketVariableHeader, VariableHeaderConnack};
+use variable_header_packet::{connect_flags, connect_return, VariableHeader, PacketVariableHeader, VariableHeaderConnack, PacketVariableHeaderConnack};
 mod payload_packet;
 use payload_packet::{Payload, PacketPayload};
 
@@ -12,34 +12,56 @@ pub struct Packet<T> {
     payload: Payload,
 }
 
-pub trait ModPacket<T> {
-    fn new() -> Packet<T>;
-    fn connect(&self, client_identifier: String) -> Packet<VariableHeader>;
-    fn connack(&self) -> Packet<VariableHeaderConnack>;
-    fn value(&self) -> Vec<u8>; // this gives us the bytestream directly to send through stream
-}
-     
-impl<T: variable_header_packet::PacketVariableHeader> Packet<VariableHeader> {
-    fn new() -> Packet<VariableHeader> {
+// specific implementations for each packet type
+impl Packet<VariableHeader> {
+    pub fn new() -> Packet<VariableHeader> {
         Packet {
             header: Header::default(),
             variable_header: VariableHeader::default(),
             payload: Payload::default(),
         }
     }
+    fn value(&self) -> Vec<u8> {
+        let mut res: Vec<u8> = Vec::with_capacity(1024);
+        let vec: Vec<u8> = self.header.value().iter().cloned().chain(
+            self.variable_header.value().iter().cloned()).chain(
+                self.payload.value().iter().cloned()
+        ).collect();
+        for i in vec {
+            res.push(i);
+        }
+        return res;
+    }
 }
 
-impl<T: variable_header_packet::PacketVariableHeaderConnack> Packet<VariableHeaderConnack> {
-    fn new() -> Packet<VariableHeaderConnack> {
+impl Packet<VariableHeaderConnack> {    
+    pub fn new() -> Packet<VariableHeaderConnack> {
         Packet {
             header: Header::default(),
             variable_header: VariableHeaderConnack::default(),
             payload: Payload::default(),
         }
-    }    
+    }
+    fn value(&self) -> Vec<u8> {
+        let mut res: Vec<u8> = Vec::with_capacity(1024);
+        let vec: Vec<u8> = self.header.value().iter().cloned().chain(
+            self.variable_header.value().iter().cloned()).chain(
+                self.payload.value().iter().cloned()
+        ).collect();
+        for i in vec {
+            res.push(i);
+        }
+        return res;
+    }
 }
 
-impl<T> ModPacket<T> for Packet<T> {
+pub trait ModPacket {
+    fn connect(&self, client_identifier: String) -> Packet<VariableHeader>;
+    fn connack(&self) -> Packet<VariableHeaderConnack>;
+}
+// general implementation for all packets
+impl<T> ModPacket for Packet<T> {
+
     fn connect(&self, client_identifier: String) -> Packet<VariableHeader> {
         let header = Header {
             control_type: control_type::CONNECT, // 0x10
@@ -47,7 +69,7 @@ impl<T> ModPacket<T> for Packet<T> {
             remaining_length_0: 0x00, // what remaining lenght is? (how it is calculated)
         };
         let protocol_name = [0x00, 0x04, b'M', b'Q', b'T', b'T'].to_vec();
-        let variable_header = VariableHeader {
+        let variable_header:VariableHeader = VariableHeader {
             protocol_name: protocol_name,
             protocol_level: 0x04,
             connect_flags: connect_flags::CLEAN_SESSION, // what connect flags do i need?
@@ -79,8 +101,7 @@ impl<T> ModPacket<T> for Packet<T> {
             control_flags: control_flags::RESERVED,
             remaining_length_0: connack_remaining_length,
         };
-        let protocol_name = [0x00, connect_return::ACCEPTED].to_vec();
-        let variable_header = VariableHeaderConnack {
+        let variable_header: VariableHeaderConnack = VariableHeaderConnack {
             acknoledge_flags: 0x00,
             return_code: connect_return::ACCEPTED,
         };
@@ -95,26 +116,6 @@ impl<T> ModPacket<T> for Packet<T> {
         };
         return packet;
     }
-
-    fn value(&self) -> Vec<u8> {
-        let mut res: Vec<u8> = Vec::with_capacity(1024);
-        let vec: Vec<u8> = self.header.value().iter().cloned().chain(
-            self.variable_header.value().iter().cloned()).chain(
-                self.payload.value().iter().cloned()
-        ).collect();
-        for i in vec {
-            res.push(i);
-        }
-        return res;
-    }
-
-    // fn new() -> Packet<T> {
-    //     Packet {
-    //         header: Header::default(),
-    //         variable_header: [].to_vec(),
-    //         payload: Payload::default(),
-    //     }
-    // }
 }
 
 #[cfg(test)]
@@ -125,14 +126,14 @@ mod tests {
         use super::*;
         #[test]
         fn connect_packet() {
-            let connect_head_stub = vec![16, 0, 0, 0, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
+            let connect_head_stub = vec![0x10, 0, 0, 0, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
             let client_identifier = String::from("testId");
             let connect_stub: Vec<u8> = connect_head_stub.iter().copied().chain(
                 (client_identifier.len() as u16).to_be_bytes().iter().copied().chain(
                     client_identifier.as_bytes().iter().copied()
                 )
             ).collect();
-            let packet = Packet::new();
+            let packet = Packet::<VariableHeader>::new();
             let packet = packet.connect(client_identifier);
             let value = packet.value();
             println!("value connect: {:?}", value);
@@ -149,7 +150,7 @@ mod tests {
                 variable_header.iter().copied()
             ).collect();
            
-            let packet = Packet::new();
+            let packet = Packet::<VariableHeaderConnack>::new();
             let packet = packet.connack();
             let value = packet.value();
             println!("value connack: {:?}", value);
