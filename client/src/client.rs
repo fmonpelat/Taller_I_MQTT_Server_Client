@@ -18,7 +18,7 @@ impl<'a> Client<'a> {
     }
   }
 
-  pub fn connect(&self) {
+  pub fn connect(&self) -> (){
     match TcpStream::connect(String::from(self.server_host) + ":" + self.server_port) {
       Ok(mut stream) => {
         println!("Successfully connected to server in port {}", self.server_port);

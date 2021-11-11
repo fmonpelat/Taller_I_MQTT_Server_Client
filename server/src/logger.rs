@@ -10,7 +10,7 @@ pub struct Logger {
     _file_source: String,
 }
 pub trait Logging {
-    fn new(file_source:&str) -> Logger;
+    fn new(file_source:&str) -> Self;
     fn log(&self, msg: String) -> Result<&'static str> ;
     fn debug(&self, message: String) -> Result<&'static str> ;
     fn error(&self, message: String)-> Result<&'static str> ;
