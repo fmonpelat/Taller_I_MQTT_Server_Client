@@ -6,6 +6,7 @@ use std::{thread};
 mod logger;
 use crate::logger::{Logger, Logging};
 
+#[allow(clippy::unit_arg)]
 fn handle_client(mut stream: TcpStream) -> Result<()> {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
 
@@ -51,15 +52,15 @@ fn main() {
 
     let listener = TcpListener::bind(server_address + ":" + server_port).unwrap();
     // accept connections and process them, spawning a new thread for each one
-    logger.debug("start binding".to_string());
+    logger.debug("start binding".to_string()).ok();
     println!("Server listening on port {}", server_port);
     for stream in listener.incoming() {
-        logger.debug("start listening to clients".to_string());
+        logger.debug("start listening to clients".to_string()).ok();
         match stream {
             Ok(stream) => {
                 let new_conn_msg = format!("New connection: {}",stream.peer_addr().unwrap());
                 println!("New connection: {}", new_conn_msg);
-                logger.debug(new_conn_msg);
+                logger.debug(new_conn_msg).ok();
                 thread::spawn(move || {
                     // connection succeeded
                     handle_client(stream)
