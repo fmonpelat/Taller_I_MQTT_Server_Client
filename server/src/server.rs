@@ -2,7 +2,7 @@ use core::time;
 use std::io::{Read, Result, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::str::from_utf8;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 use std::{thread};
 use crate::logger::{Logger, Logging};
 
@@ -21,7 +21,7 @@ impl Server {
     }
   }
 
-  fn handle_client( stream: &Arc<TcpStream>, logger: Arc<Logger>) -> Result<()> {
+  fn handle_client( mut stream: TcpStream, logger: Arc<Logger>) -> Result<()> {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
     Ok(while match stream.read(&mut buff) {
         Ok(_size) => {
@@ -68,13 +68,10 @@ impl Server {
         match stream {
             Ok(stream) => {
                 self.logger.info(format!("New connection: {}",stream.peer_addr().unwrap()));
-
-                let client = Arc::new(stream);
-                let client_clone= client.clone();
                 let logger = self.logger.clone();
                 thread::spawn(move || {
                     // connection succeeded
-                    Server::handle_client(&client_clone, logger)
+                    Server::handle_client(stream, logger)
                 });
             }
             Err(e) => { /* connection failed */
