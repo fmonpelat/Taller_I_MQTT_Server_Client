@@ -21,7 +21,7 @@ impl Server {
     }
   }
 
-  fn handle_client( stream: Arc<TcpStream>, logger: Arc<Logger>) -> Result<()> {
+  fn handle_client( stream: &Arc<TcpStream>, logger: Arc<Logger>) -> Result<()> {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
     Ok(while match stream.read(&mut buff) {
         Ok(_size) => {
@@ -56,7 +56,7 @@ impl Server {
     } {})
 	}
 
-  pub fn connect(& mut self) -> Result<()> {
+  pub fn connect(&self) -> Result<()> {
 	self.logger.debug("ready to binding".to_string());
     self.logger.info(format!("server address: {:?}",self.server_address.to_owned() + ":" + &self.server_port));
     let listener = TcpListener::bind(self.server_address.to_owned() + ":" + &self.server_port)?;
@@ -69,13 +69,12 @@ impl Server {
             Ok(stream) => {
                 self.logger.info(format!("New connection: {}",stream.peer_addr().unwrap()));
 
-                let client = Arc::new(Mutex::new(stream));
+                let client = Arc::new(stream);
                 let client_clone= client.clone();
-                
+                let logger = self.logger.clone();
                 thread::spawn(move || {
                     // connection succeeded
-                    let logger = self.logger.clone();
-                    Server::handle_client(client_clone.lock().unwrap(),logger)
+                    Server::handle_client(&client_clone, logger)
                 });
             }
             Err(e) => { /* connection failed */
