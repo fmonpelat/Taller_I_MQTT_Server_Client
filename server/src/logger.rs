@@ -12,9 +12,9 @@ pub struct Logger {
 pub trait Logging {
     fn new(file_source:&str) -> Self;
     fn log(&self, msg: String) -> Result<&'static str> ;
-    fn debug(&self, message: String) -> Result<&'static str> ;
-    fn error(&self, message: String)-> Result<&'static str> ;
-    fn info(&self, message: String)-> Result<&'static str> ;
+    fn debug(&self, message: String) -> Option<&str> ;
+    fn error(&self, message: String)-> Option<&str> ;
+    fn info(&self, message: String)-> Option<&str> ;
 }
 
 impl Logging for Logger{
@@ -50,15 +50,15 @@ impl Logging for Logger{
         }  
     } 
     
-    fn debug(&self, message: String) -> Result<&'static str> {
-        self.log("[DEBUG] ".to_string() + &message)
+    fn debug(&self, message: String) -> Option<&str> {
+        self.log("[DEBUG] ".to_string() + &message).ok()
     }
 
-    fn error(&self, message: String) -> Result<&'static str> {
-        self.log("[ERROR] ".to_string() + &message)
+    fn error(&self, message: String) -> Option<&str> {
+        self.log("[ERROR] ".to_string() + &message).ok()
     }
 
-    fn info(&self, message: String) -> Result<&'static str> {
-        self.log("[INFO] ".to_string() + &message)
+    fn info(&self, message: String) -> Option<&str>{
+        self.log("[INFO] ".to_string() + &message).ok()
     }
 }
