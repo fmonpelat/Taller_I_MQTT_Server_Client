@@ -13,12 +13,12 @@ pub struct Client<'a> {
 impl<'a> Client<'a> {
   pub fn new(server_host: &'a str, server_port: &'a str) -> Self {
     Client{
-      server_host: server_host,
-      server_port: server_port,
+      server_host,
+      server_port,
     }
   }
 
-  pub fn connect(&self) -> () {
+  pub fn connect(&self) {
     match TcpStream::connect(String::from(self.server_host) + ":" + self.server_port) {
       Ok(mut stream) => {
         println!("Successfully connected to server in port {}", self.server_port);
@@ -66,7 +66,7 @@ impl<'a> Client<'a> {
           println!("Failed to connect: {}", e);
       }
     };
-    return;
+    
   }
 
   // pub fn get_server_port(self)-> String{
