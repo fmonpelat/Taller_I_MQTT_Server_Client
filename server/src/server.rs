@@ -23,7 +23,7 @@ impl Server {
 
   fn handle_client( mut stream: TcpStream, logger: Arc<Logger>) -> Result<()> {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
-    Ok(while match stream.read(&mut buff) {
+    Ok('mathStream: while match stream.read(&mut buff) {
         Ok(_size) => {
             //  send pong if ping msg is received
             match from_utf8(&buff) {
@@ -36,7 +36,10 @@ impl Server {
                                 return Err(e) // Send client id when write_all fails
                             }
                         }
-                        _ => logger.info(format!("Not understood this packet: {}\n", packet)),
+                        _ => {
+                              logger.info(format!("Not understood this packet: {}\n", packet));
+                              continue 'mathStream;
+                            }
                     }
                     thread::sleep(time::Duration::from_millis(2000));
                     true
@@ -53,7 +56,7 @@ impl Server {
             stream.shutdown(Shutdown::Both).unwrap();
             false
         }
-    } {})
+    }{})
 	}
 
   pub fn connect(&self) -> Result<()> {
