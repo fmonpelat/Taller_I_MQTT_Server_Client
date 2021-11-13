@@ -52,7 +52,7 @@ impl PacketHeader for Header {
         for i in self.remaining_length_0.iter() {
             header_vec.push(*i);
         }
-        return header_vec;
+        header_vec
     }
 
     fn get_cmd_type(&self) -> u8 {
@@ -88,8 +88,7 @@ impl PacketHeader for Header {
             };
             if (encoded_byte & 128) == 0 { break }
         }
-        
-        return value as u32;
+        value as u32
     }
 
     fn encode_remaining_length(&self, x: u32) -> Vec<u8> {
@@ -102,25 +101,25 @@ impl PacketHeader for Header {
         // 289 endif
         // 290 'output' encodedByte
         // 291 while ( X > 0 )
-        let mut x_: u32 = x.clone();
+        let mut x_: u32 = x;
         let mut return_vec = Vec::with_capacity(4);
         loop {
             {
                 let mut encoded_byte: u8 = (x_ % 128) as u8;
-                x_ = x_ / 128;
+                x_ /= 128;
                 if x_ > 0 {
-                    encoded_byte = encoded_byte | 128; // set the topmost bit to 1
+                    encoded_byte |= 128; // set the topmost bit to 1
                 }
                 return_vec.push(encoded_byte);
             };
-            if x_ <= 0 { break }
+            if x_ == 0 { break }
         }
-        return return_vec;
+        return_vec
     }
 
     fn set_remaining_length(&mut self, x: u32) {
         let vector= self.encode_remaining_length(x);
-        self.remaining_length_0 = vector.clone();
+        self.remaining_length_0 = vector;
         
     }
 }

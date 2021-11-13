@@ -27,8 +27,8 @@ impl Packet<VariableHeader> {
     }
     fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
-        let variable_header = if self.has_variable_header { self.variable_header.value().clone() } else { Vec::new() };
-        let payload = if self.has_payload { self.payload.value().clone()} else { Vec::new() };
+        let variable_header = if self.has_variable_header { self.variable_header.value() } else { Vec::new() };
+        let payload = if self.has_payload { self.payload.value()} else { Vec::new() };
 
         let vec: Vec<u8> = self.header.value().iter().cloned()
         .chain(
@@ -39,15 +39,15 @@ impl Packet<VariableHeader> {
         for i in vec {
             res.push(i);
         }
-        return res;
+        res
     }
 }
 
 impl Packet<VariableHeaderConnack> {
     fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
-        let variable_header = if self.has_variable_header { self.variable_header.value().clone() } else { Vec::new() };
-        let payload = if self.has_payload { self.payload.value().clone()} else { Vec::new() };
+        let variable_header = if self.has_variable_header { self.variable_header.value() } else { Vec::new() };
+        let payload = if self.has_payload { self.payload.value()} else { Vec::new() };
 
         let vec: Vec<u8> = self.header.value().iter().cloned()
         .chain(
@@ -58,7 +58,7 @@ impl Packet<VariableHeaderConnack> {
         for i in vec {
             res.push(i);
         }
-        return res;
+        res
     }
 }
 
@@ -77,30 +77,30 @@ impl<T> ClientPacket for Packet<T> {
         };
         let protocol_name = [0x00, 0x04, b'M', b'Q', b'T', b'T'].to_vec();
         let variable_header:VariableHeader = VariableHeader {
-            protocol_name: protocol_name,
+            protocol_name,
             protocol_level: 0x04,
             connect_flags: connect_flags::CLEAN_SESSION, // what connect flags do i need?
             keep_alive: 0x00,
         };
         // do we need a payload if there is a connect?
         let payload = Payload {
-            client_identifier: client_identifier,
+            client_identifier,
             ..Payload::default()
         };
 
         // building the struct packet
         let mut packet = Packet {
-            header: header,
+            header,
             has_variable_header: true,
-            variable_header: variable_header,
+            variable_header,
             has_payload: true,
-            payload: payload,
+            payload,
         };
         let remaining_length = (packet.variable_header.value().len() + packet.payload.value().len()) as u32;
         println!("calculated packet remaining length: {}", remaining_length);
         packet.header.set_remaining_length(remaining_length);
         println!(" decoded remaining length {:?}", packet.header.decode_remaining_length());
-        return packet;
+        packet
     }
 
     fn disconnect(&self) -> Packet<VariableHeader> {
@@ -110,14 +110,13 @@ impl<T> ClientPacket for Packet<T> {
             remaining_length_0: vec![0],
         };
         // building the struct packet
-        let packet = Packet {
-            header: header,
+        Packet {
+            header,
             has_variable_header: false,
             variable_header: VariableHeader::default(),
             has_payload: false,
             payload: Payload::default(),
-        };
-        return packet;
+        }
     }
 }
 
@@ -149,15 +148,13 @@ impl<T> ServerPacket for Packet<T> {
         // self.variable_header = variable_header;
         // self.payload = payload;
 
-        let packet = Packet {
-            header: header,
+        Packet {
+            header,
             has_variable_header: true,
-            variable_header: variable_header,
+            variable_header,
             has_payload: true,
-            payload: payload,
-        };
-
-        return packet;
+            payload,
+        }
     }
 }
 

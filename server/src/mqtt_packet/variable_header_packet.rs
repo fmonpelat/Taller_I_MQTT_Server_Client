@@ -23,7 +23,7 @@ pub mod connect_return {
 }
   
 pub mod connect_ack_flags {
-    pub const SESSION_PRESENT: u8 = 0x01;
+    //pub const SESSION_PRESENT: u8 = 0x01;
 }
 
 #[derive(Debug, Default)]
@@ -48,7 +48,7 @@ impl PacketVariableHeader for VariableHeader {
         variable_header_vec.push(self.connect_flags);
         variable_header_vec.push((self.keep_alive >> 8) as u8);
         variable_header_vec.push((self.keep_alive & 0xFF) as u8);
-        return variable_header_vec;
+        variable_header_vec
     }
 }
 
@@ -67,7 +67,7 @@ impl PacketVariableHeaderConnack for VariableHeaderConnack {
         let mut variable_header_vec: Vec<u8> = Vec::with_capacity(2);
         variable_header_vec.push(self.acknoledge_flags);
         variable_header_vec.push(self.return_code as u8);
-        return variable_header_vec;
+        variable_header_vec
     }
 }
 

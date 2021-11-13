@@ -22,7 +22,7 @@ impl PacketPayload for Payload {
             |x| {
                 let x_ = (x.to_string().len() as u16).to_be_bytes();
                 payload_vec.extend(
-                    if x.to_string().len() > 0 {
+                    if !x.to_string().is_empty() {
                         x_.iter()
                     } else { [].iter() }
                 );
@@ -31,10 +31,10 @@ impl PacketPayload for Payload {
             }
         ).collect();
 
-        if payload_vec.len() == 0 {
+        if payload_vec.is_empty() {
             return vec![];
         }
-        return payload_vec;
+        payload_vec
     }
 }
 
