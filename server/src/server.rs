@@ -37,7 +37,7 @@ impl Server {
                             }
                         }
                         _ => {
-                              logger.info(format!("Not understood this packet: {}\n", packet));
+                              logger.info(format!("Not understood this packet: {}\n", packet))?;
                               continue 'mathStream;
                             }
                     }
@@ -60,17 +60,17 @@ impl Server {
 	}
 
   pub fn connect(&self) -> Result<()> {
-	self.logger.debug("ready to binding".to_string());
-    self.logger.info(format!("server address: {:?}",self.server_address.to_owned() + ":" + &self.server_port));
+	  self.logger.debug("ready to binding".to_string())?;
+    self.logger.info(format!("server address: {:?}",self.server_address.to_owned() + ":" + &self.server_port))?;
     let listener = TcpListener::bind(self.server_address.to_owned() + ":" + &self.server_port)?;
     // accept connections and process them, spawning a new thread for each one
-    self.logger.debug("start binding".to_string());
+    self.logger.debug("start binding".to_string())?;
     println!("Server listening on port {}", self.server_port);
     for stream in listener.incoming() {
-        self.logger.info("start listening to clients".to_string());
+        self.logger.info("start listening to clients".to_string())?;
         match stream {
             Ok(stream) => {
-                self.logger.info(format!("New connection: {}",stream.peer_addr().unwrap()));
+                self.logger.info(format!("New connection: {}",stream.peer_addr().unwrap()))?;
                 let logger = self.logger.clone();
                 thread::spawn(move || {
                     // connection succeeded
@@ -85,7 +85,7 @@ impl Server {
     }
     // close the socket server
     drop(listener);
-    self.logger.info("Server terminated.".to_string()); //ver porque no se escribe esta linea no se escribe en el log
+    self.logger.info("Server terminated.".to_string())?; //ver porque no se escribe esta linea no se escribe en el log
     Ok(())
 
   }

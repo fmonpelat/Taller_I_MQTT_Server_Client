@@ -10,10 +10,14 @@ fn main() -> Result<(), ()> {
     let server = Server::new("0.0.0.0".to_owned(), "3333".to_owned(), file_name);
     match server.connect() {
         Ok(_) => {
-            logger.info("Successfully connect to clients.".to_string());
-        }
+            if let Err(e) = logger.info("Successfully connect to clients.".to_string()){
+                println!("{:?}", e)
+            }
+        }    
         Err(e) => {
-            logger.info(format!("Unexpected error{:?}", e));
+            if let Err(error_log) = logger.info(format!("Unexpected error{:?}", e)){
+                println!("{:?}", error_log)
+            }
             return Err(());
         }
     }
