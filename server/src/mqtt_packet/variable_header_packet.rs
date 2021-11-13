@@ -12,6 +12,7 @@ pub mod connect_flags {
     pub const RESERVED: u8 = 0x01;
 }
 
+#[allow(dead_code)]
 pub mod connect_return {
     pub const ACCEPTED: u8 = 0x00;
     pub const UNACCEPTABLE_PROTOCOL_VERSION: u8 = 0x01;
@@ -104,7 +105,7 @@ mod tests {
             return_code: return_code,
         };
         let value: Vec<u8> = variable_header.value();
-        // println!("variable header value: {:?}", value);
+        println!("variable header value: {:?}", value);
         assert!(value.len() == vh_stub.len());
         assert!(vh_stub.eq(&value));
     }

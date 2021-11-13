@@ -34,7 +34,7 @@ impl Packet<VariableHeader> {
     }
 }
 
-impl Packet<VariableHeaderConnack> {    
+impl Packet<VariableHeaderConnack> {
     pub fn new() -> Packet<VariableHeaderConnack> {
         Packet {
             header: Header::default(),
@@ -66,7 +66,7 @@ impl<T> ModPacket for Packet<T> {
         let header = Header {
             control_type: control_type::CONNECT, // 0x10
             control_flags: control_flags::RESERVED, // 0x00
-            remaining_length_0: 0x00, // what remaining lenght is? (how it is calculated)
+            remaining_length_0: vec![0], // what remaining lenght is? (how it is calculated)
         };
         let protocol_name = [0x00, 0x04, b'M', b'Q', b'T', b'T'].to_vec();
         let variable_header:VariableHeader = VariableHeader {
@@ -95,25 +95,35 @@ impl<T> ModPacket for Packet<T> {
     }
 
     fn connack(&self) -> Packet<VariableHeaderConnack> {
-        let connack_remaining_length = 0x02; // for connack the remaining length is 2
-        let header = Header {
-            control_type: control_type::CONNACK,
-            control_flags: control_flags::RESERVED,
-            remaining_length_0: connack_remaining_length,
-        };
         let variable_header: VariableHeaderConnack = VariableHeaderConnack {
             acknoledge_flags: 0x00,
             return_code: connect_return::ACCEPTED,
+        };
+        let mut header = Header {
+            control_type: control_type::CONNACK,
+            control_flags: control_flags::RESERVED,
+            remaining_length_0: vec![0],
         };
         // empty payload
         let payload = Payload {
             ..Payload::default()
         };
+        let remaining_length = (variable_header.value().len() + payload.value().len()) as u32;
+        header.set_remaining_length(remaining_length);
+
         let packet = Packet {
             header: header,
             variable_header: variable_header,
             payload: payload,
         };
+        let _header = packet.header.value();
+        println!("header: {:?}", _header);
+        let _variable_header = packet.variable_header.value();
+        println!("variable header: {:?}", _variable_header);
+        let _payload = packet.payload.value();
+        println!("payload: {:?}", _payload);
+
+        println!("decoded packet remaining length: {}", packet.header.decode_remaining_length());
         return packet;
     }
 }
@@ -145,12 +155,15 @@ mod tests {
         #[test]
         fn connack_packet() {
             let header = vec![0x20, 0x02];
-            let variable_header = vec![0, 0, 77, 81, 84, 84];
+            let variable_header = vec![0, 0, 2, 0, 0];
             let connack_head_stub:Vec<u8> = header.iter().copied().chain(
                 variable_header.iter().copied()
             ).collect();
            
-            let packet = Packet::<VariableHeaderConnack>::new();
+            let packet = Packet::<VariableHeader>::new();
+            packet.value();
+            //let packet = Packet::<VariableHeaderConnack>::new();
+
             let packet = packet.connack();
             let value = packet.value();
             println!("value connack: {:?}", value);
