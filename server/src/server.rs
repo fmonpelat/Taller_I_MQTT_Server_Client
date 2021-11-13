@@ -12,6 +12,7 @@ pub struct Server {
 	logger: Arc<Logger>,   
   }
 
+#[allow(clippy::unit_arg)]
 impl Server {
   pub fn new(server_address: String, server_port: String, file_source: & str) -> Self {
     Server{
