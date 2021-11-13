@@ -64,10 +64,7 @@ pub trait PacketVariableHeaderConnack {
 
 impl PacketVariableHeaderConnack for VariableHeaderConnack {
     fn value(&self) -> Vec<u8> {
-        let mut variable_header_vec: Vec<u8> = Vec::with_capacity(2);
-        variable_header_vec.push(self.acknoledge_flags);
-        variable_header_vec.push(self.return_code as u8);
-        variable_header_vec
+        vec![self.acknoledge_flags, self.return_code]
     }
 }
 
