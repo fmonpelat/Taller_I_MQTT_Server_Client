@@ -16,6 +16,7 @@ pub struct Packet<T> {
 
 // specific implementations for each packet type
 impl Packet<VariableHeader> {
+    #[allow(dead_code)]
     pub fn new() -> Packet<VariableHeader> {
         Packet {
             header: Header::default(),
@@ -25,6 +26,7 @@ impl Packet<VariableHeader> {
             payload: Payload::default(),
         }
     }
+    #[allow(dead_code)]
     fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
         let variable_header = if self.has_variable_header { self.variable_header.value() } else { Vec::new() };
@@ -44,6 +46,7 @@ impl Packet<VariableHeader> {
 }
 
 impl Packet<VariableHeaderConnack> {
+    #[allow(dead_code)]
     fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
         let variable_header = if self.has_variable_header { self.variable_header.value() } else { Vec::new() };

@@ -21,7 +21,8 @@ pub mod connect_return {
     pub const BAD_USERNAME_OR_PASSWORD: u8 = 0x04;
     pub const NOT_AUTHORIZED: u8 = 0x05; 
 }
-  
+
+#[allow(dead_code)]
 pub mod connect_ack_flags {
     pub const SESSION_PRESENT: u8 = 0x01;
 }
