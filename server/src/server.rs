@@ -12,6 +12,7 @@ pub struct Server {
 	logger: Arc<Logger>,   
   }
 
+#[allow(clippy::unit_arg)]
 impl Server {
   pub fn new(server_address: String, server_port: String, file_source: & str) -> Self {
     Server{
@@ -23,40 +24,43 @@ impl Server {
 
   fn handle_client( mut stream: TcpStream, logger: Arc<Logger>) -> Result<()> {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
-    Ok('mathStream: while match stream.read(&mut buff) {
-        Ok(_size) => {
-            //  send pong if ping msg is received
-            match from_utf8(&buff) {
-                Ok(packet) => {
-                    match packet {
-                        "Ping..." => {
-                            println!("Ping received! \n");
-                            if let Err(e) = stream.write_all(b"Pong...") {
-                                println!("Client disconnect");
-                                return Err(e) // Send client id when write_all fails
+    
+    Ok( loop {
+        match stream.read(&mut buff) {
+            Ok(_size) => {
+                //  send pong if ping msg is received
+                match from_utf8(&buff) {
+                    Ok(packet) => {
+                        match packet {
+                            "Ping..." => {
+                                println!("Ping received! \n");
+                                if let Err(e) = stream.write_all(b"Pong...") {
+                                    println!("Client disconnect");
+                                    return Err(e) // Send client id when write_all fails
+                                }
                             }
+                            _ => {
+                                  logger.info(format!("Not understood this packet: {}\n", packet));
+                                  
+                                }
                         }
-                        _ => {
-                              logger.info(format!("Not understood this packet: {}\n", packet));
-                              continue 'mathStream;
-                            }
+                        thread::sleep(time::Duration::from_millis(2000));
+                        
                     }
-                    thread::sleep(time::Duration::from_millis(2000));
-                    true
-                }
-                Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-            };
-            true
+                    Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+                };
+                
+            }
+            Err(_) => {
+                println!(
+                    "An error occurred, terminating connection with {}",
+                    stream.peer_addr().unwrap()
+                );
+                stream.shutdown(Shutdown::Both).unwrap();
+                break
+            }
         }
-        Err(_) => {
-            println!(
-                "An error occurred, terminating connection with {}",
-                stream.peer_addr().unwrap()
-            );
-            stream.shutdown(Shutdown::Both).unwrap();
-            false
-        }
-    }{})
+    } )
 	}
 
   pub fn connect(&self) -> Result<()> {
