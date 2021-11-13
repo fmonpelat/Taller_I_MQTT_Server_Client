@@ -1,14 +1,16 @@
 mod header_packet;
 use header_packet::{control_flags, control_type, Header, PacketHeader};
 mod variable_header_packet;
-use variable_header_packet::{connect_flags, connect_return, VariableHeader, PacketVariableHeader, VariableHeaderConnack, PacketVariableHeaderConnack};
+use variable_header_packet::{connect_flags, VariableHeader, PacketVariableHeader, VariableHeaderConnack, PacketVariableHeaderConnack};
 mod payload_packet;
 use payload_packet::{Payload, PacketPayload};
 
 #[derive(Debug, Default)]
 pub struct Packet<T> {
     header: Header,
+    has_variable_header: bool,
     variable_header: T,
+    has_payload: bool,
     payload: Payload,
 }
 
@@ -17,16 +19,23 @@ impl Packet<VariableHeader> {
     pub fn new() -> Packet<VariableHeader> {
         Packet {
             header: Header::default(),
+            has_variable_header: false,
             variable_header: VariableHeader::default(),
+            has_payload: false,
             payload: Payload::default(),
         }
     }
     fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
-        let vec: Vec<u8> = self.header.value().iter().cloned().chain(
-            self.variable_header.value().iter().cloned()).chain(
-                self.payload.value().iter().cloned()
+        let variable_header = if self.has_variable_header { self.variable_header.value().clone() } else { Vec::new() };
+        let payload = if self.has_payload { self.payload.value().clone()} else { Vec::new() };
+
+        let vec: Vec<u8> = self.header.value().iter().cloned()
+        .chain(
+            variable_header.iter().cloned().chain(
+                payload.iter().cloned())
         ).collect();
+
         for i in vec {
             res.push(i);
         }
@@ -35,19 +44,17 @@ impl Packet<VariableHeader> {
 }
 
 impl Packet<VariableHeaderConnack> {
-    pub fn new() -> Packet<VariableHeaderConnack> {
-        Packet {
-            header: Header::default(),
-            variable_header: VariableHeaderConnack::default(),
-            payload: Payload::default(),
-        }
-    }
     fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
-        let vec: Vec<u8> = self.header.value().iter().cloned().chain(
-            self.variable_header.value().iter().cloned()).chain(
-                self.payload.value().iter().cloned()
+        let variable_header = if self.has_variable_header { self.variable_header.value().clone() } else { Vec::new() };
+        let payload = if self.has_payload { self.payload.value().clone()} else { Vec::new() };
+
+        let vec: Vec<u8> = self.header.value().iter().cloned()
+        .chain(
+            variable_header.iter().cloned().chain(
+                payload.iter().cloned())
         ).collect();
+
         for i in vec {
             res.push(i);
         }
@@ -55,12 +62,12 @@ impl Packet<VariableHeaderConnack> {
     }
 }
 
-pub trait ModPacket {
+pub trait ClientPacket {
     fn connect(&self, client_identifier: String) -> Packet<VariableHeader>;
-    fn connack(&self) -> Packet<VariableHeaderConnack>;
+    fn disconnect(&self) -> Packet<VariableHeader>;
 }
 // general implementation for all packets
-impl<T> ModPacket for Packet<T> {
+impl<T> ClientPacket for Packet<T> {
 
     fn connect(&self, client_identifier: String) -> Packet<VariableHeader> {
         let header = Header {
@@ -84,7 +91,9 @@ impl<T> ModPacket for Packet<T> {
         // building the struct packet
         let mut packet = Packet {
             header: header,
+            has_variable_header: true,
             variable_header: variable_header,
+            has_payload: true,
             payload: payload,
         };
         let remaining_length = (packet.variable_header.value().len() + packet.payload.value().len()) as u32;
@@ -94,10 +103,34 @@ impl<T> ModPacket for Packet<T> {
         return packet;
     }
 
-    fn connack(&self) -> Packet<VariableHeaderConnack> {
+    fn disconnect(&self) -> Packet<VariableHeader> {
+        let header = Header {
+            control_type: control_type::DISCONNECT,
+            control_flags: control_flags::RESERVED,
+            remaining_length_0: vec![0],
+        };
+        // building the struct packet
+        let packet = Packet {
+            header: header,
+            has_variable_header: false,
+            variable_header: VariableHeader::default(),
+            has_payload: false,
+            payload: Payload::default(),
+        };
+        return packet;
+    }
+}
+
+pub trait ServerPacket {
+    fn connack(&self, connect_ack_flags: u8, connect_return: u8 ) -> Packet<VariableHeaderConnack>;
+}
+
+impl<T> ServerPacket for Packet<T> {
+
+    fn connack(&self, connect_ack_flags: u8, connect_return: u8) -> Packet<VariableHeaderConnack> {
         let variable_header: VariableHeaderConnack = VariableHeaderConnack {
-            acknoledge_flags: 0x00,
-            return_code: connect_return::ACCEPTED,
+            acknoledge_flags: connect_ack_flags,
+            return_code: connect_return,
         };
         let mut header = Header {
             control_type: control_type::CONNACK,
@@ -111,32 +144,35 @@ impl<T> ModPacket for Packet<T> {
         let remaining_length = (variable_header.value().len() + payload.value().len()) as u32;
         header.set_remaining_length(remaining_length);
 
+        // TODO: check if this function can modify the self packet
+        // self.header = header;
+        // self.variable_header = variable_header;
+        // self.payload = payload;
+
         let packet = Packet {
             header: header,
+            has_variable_header: true,
             variable_header: variable_header,
+            has_payload: true,
             payload: payload,
         };
-        let _header = packet.header.value();
-        println!("header: {:?}", _header);
-        let _variable_header = packet.variable_header.value();
-        println!("variable header: {:?}", _variable_header);
-        let _payload = packet.payload.value();
-        println!("payload: {:?}", _payload);
 
-        println!("decoded packet remaining length: {}", packet.header.decode_remaining_length());
         return packet;
     }
 }
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     mod packets {
+        use crate::mqtt_packet::variable_header_packet::{ connect_ack_flags, connect_return};
+
         use super::*;
         #[test]
-        fn connect_packet() {
-            let connect_head_stub = vec![0x10, 0, 0, 0, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
+        fn check_connect_packet() {
+            let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
             let client_identifier = String::from("testId");
             let connect_stub: Vec<u8> = connect_head_stub.iter().copied().chain(
                 (client_identifier.len() as u16).to_be_bytes().iter().copied().chain(
@@ -146,30 +182,42 @@ mod tests {
             let packet = Packet::<VariableHeader>::new();
             let packet = packet.connect(client_identifier);
             let value = packet.value();
-            println!("value connect: {:?}", value);
-            println!("connect stub: {:?}", connect_stub);
+            // println!("value connect: {:?}", value);
+            // println!("connect stub: {:?}", connect_stub);
             assert_eq!(value.len(), connect_stub.len());
             assert!(connect_stub.eq(&value));
         }
 
         #[test]
-        fn connack_packet() {
+        fn check_connack_packet() {
             let header = vec![0x20, 0x02];
-            let variable_header = vec![0, 0, 2, 0, 0];
+            let mut variable_header = Vec::with_capacity(2);
+            variable_header.push(connect_ack_flags::SESSION_PRESENT);
+            variable_header.push(connect_return::ACCEPTED);
             let connack_head_stub:Vec<u8> = header.iter().copied().chain(
                 variable_header.iter().copied()
             ).collect();
            
             let packet = Packet::<VariableHeader>::new();
-            packet.value();
-            //let packet = Packet::<VariableHeaderConnack>::new();
-
-            let packet = packet.connack();
+            let packet = packet.connack(connect_ack_flags::SESSION_PRESENT, connect_return::ACCEPTED);
             let value = packet.value();
-            println!("value connack: {:?}", value);
-            println!("connack stub: {:?}", connack_head_stub);
+            // println!("value connack: {:?}", value);
+            // println!("connack stub: {:?}", connack_head_stub);
             assert_eq!(value.len(), connack_head_stub.len());
-            // assert!(connect_stub.eq(&value));
+            assert!(connack_head_stub.eq(&value));
+        }
+
+        #[test]
+        fn check_disconnect_packet() {
+            let header = vec![14, 0x00];
+            let disconnect_stub: Vec<u8> = header.iter().copied().collect();
+            let packet = Packet::<VariableHeader>::new();
+            let packet = packet.disconnect();
+            let value = packet.value();
+            // println!("value disconnect: {:?}", value);
+            // println!("disconnect stub: {:?}", disconnect_stub);
+            assert!(value.len() == disconnect_stub.len());
+            assert!(disconnect_stub.eq(&value));
         }
     }
 }

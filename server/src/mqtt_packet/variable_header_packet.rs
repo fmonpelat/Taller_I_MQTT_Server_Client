@@ -22,6 +22,10 @@ pub mod connect_return {
     pub const NOT_AUTHORIZED: u8 = 0x05; 
 }
   
+pub mod connect_ack_flags {
+    pub const SESSION_PRESENT: u8 = 0x01;
+}
+
 #[derive(Debug, Default)]
 pub struct VariableHeader {
     pub protocol_name: Vec<u8>, // must be allways: [0,4,'M','Q','T','T']

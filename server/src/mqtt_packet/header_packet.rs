@@ -10,12 +10,12 @@ pub mod control_type {
     pub const PUBCOMP: u8 = 0x70;
     pub const SUBSCRIBE: u8 = 0x80;
     pub const SUBACK: u8 = 0x90;
-    pub const UNSUBSCRIBE: u8 = 0xA0;
-    pub const UNSUBACK: u8 = 0xB0;
-    pub const PINGREQ: u8 = 0xC0;
-    pub const PINGRESP: u8 = 0xD0;
-    pub const DISCONNECT: u8 = 0xE0;
-    pub const RESERVED: u8 = 0xF0;
+    pub const UNSUBSCRIBE: u8 = 0xA;
+    pub const UNSUBACK: u8 = 0xB;
+    pub const PINGREQ: u8 = 0xC;
+    pub const PINGRESP: u8 = 0xD;
+    pub const DISCONNECT: u8 = 0xE;
+    pub const RESERVED: u8 = 0xF;
 }
 
 #[allow(dead_code)]
