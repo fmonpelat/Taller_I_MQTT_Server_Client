@@ -23,7 +23,7 @@ pub mod connect_return {
 }
   
 pub mod connect_ack_flags {
-    //pub const SESSION_PRESENT: u8 = 0x01;
+    pub const SESSION_PRESENT: u8 = 0x01;
 }
 
 #[derive(Debug, Default)]
