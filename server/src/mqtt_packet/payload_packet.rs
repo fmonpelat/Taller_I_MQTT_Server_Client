@@ -38,6 +38,28 @@ impl PacketPayload for Payload {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct PublishPayload {
+    pub message: String,
+}
+
+pub trait PacketPublishPayload {
+    fn value(&self) -> Vec<u8>;
+}
+
+impl PacketPublishPayload for PublishPayload {
+    fn value(&self) -> Vec<u8> {
+        let mut payload_vec: Vec<u8> = Vec::with_capacity(1024);
+        self.message.as_bytes().iter().for_each(|x| payload_vec.push(*x));
+        if payload_vec.is_empty() {
+            return vec![];
+        }
+        payload_vec
+    }
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
