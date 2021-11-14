@@ -1,5 +1,4 @@
 
-
 #[allow(dead_code)]
 pub mod connect_flags {
     pub const USERNAME: u8 = 0x80;
@@ -21,7 +20,8 @@ pub mod connect_return {
     pub const BAD_USERNAME_OR_PASSWORD: u8 = 0x04;
     pub const NOT_AUTHORIZED: u8 = 0x05; 
 }
-  
+
+#[allow(dead_code)]
 pub mod connect_ack_flags {
     pub const SESSION_PRESENT: u8 = 0x01;
 }
@@ -64,13 +64,30 @@ pub trait PacketVariableHeaderConnack {
 
 impl PacketVariableHeaderConnack for VariableHeaderConnack {
     fn value(&self) -> Vec<u8> {
-        let mut variable_header_vec: Vec<u8> = Vec::with_capacity(2);
-        variable_header_vec.push(self.acknoledge_flags);
-        variable_header_vec.push(self.return_code as u8);
-        variable_header_vec
+        vec![self.acknoledge_flags, self.return_code]
     }
 }
 
+#[derive(Debug, Default)]
+pub struct VariableHeaderPublish {
+    pub topic_name: Vec<u8>, // 2 bytes
+    pub packet_identifier: u16, // 2 bytes
+}
+pub trait PacketVariableHeaderPublish {
+    fn value(&self) -> Vec<u8>;
+}
+
+impl PacketVariableHeaderPublish for VariableHeaderPublish {
+    fn value(&self) -> Vec<u8> {
+        let mut variable_header_vec: Vec<u8> = Vec::with_capacity(7);
+        for i in &self.topic_name {
+            variable_header_vec.push(*i);
+        }
+        variable_header_vec.push((self.packet_identifier >> 8) as u8);
+        variable_header_vec.push((self.packet_identifier & 0xFF) as u8);
+        variable_header_vec
+    }
+}
 
 #[cfg(test)]
 mod tests {
