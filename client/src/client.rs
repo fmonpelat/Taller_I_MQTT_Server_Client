@@ -1,28 +1,32 @@
 use core::time;
 use std::net::{TcpStream};
 use std::io::{Read, Write};
-use std::str::from_utf8;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex, MutexGuard, mpsc};
 use std::thread;
-use std::sync::mpsc::{Sender,Receiver};
-extern crate mqtt_packet;
-use mqtt_packet::mqtt_packet::{Packet};
+//use std::sync::mpsc::{Sender,Receiver};
+use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
+//extern crate mqtt_packet;
+use mqtt_packet::mqtt_packet_service::{Packet};
 
 pub struct Client<'a> {
   server_host: &'a str, 
   server_port: &'a str,
-  tx: Sender<Vec<u8>>,
-  rx: Receiver<Vec<u8>>,    
+  //tx: &'a Arc<Mutex<Sender<Vec<u8>>>>,
+  //rx: &'a Arc<Mutex<Receiver<Vec<u8>>>>,
+  tx: &'a SyncSender<Vec<u8>>,
+  rx: &'a Receiver<Vec<u8>>, 
 }
 
 impl<'a> Client<'a> {
-  pub fn new(server_host: &'a str, server_port: &'a str ) -> Self {
-    let (tx,rx) = mpsc::channel(); 
+  pub fn new(server_host: &'a str, server_port: &'a str ) -> Client<'a>{
+    let (tx,rx) = sync_channel(1); 
+    //let tx1: &'a Arc<Mutex<Sender<Vec<u8>>>> = & Arc::new(Mutex::new(tx));
+    //let rx1: &'a Arc<Mutex<Receiver<Vec<u8>>>> = & Arc::new(Mutex::new(rx));
     Client{
       server_host,
       server_port,
-      tx,
-      rx,
+      tx: &tx,
+      rx: &rx,
     }
   }
 
@@ -38,22 +42,28 @@ impl<'a> Client<'a> {
         let stream_arc = Arc::new(Mutex::new(stream));
         let _stream = Arc::clone(&stream_arc);
 
-        let _handle_write = thread::spawn(move || loop {
-            let message = self.rx.try_recv();
-            match message {
-              Ok(msg) => {
-                if msg.len() > 0 {
-                  stream_arc.lock().unwrap().write_all(&msg).unwrap(); 
-                }
-              },
-              Err(e) => {
-                println!("Try rx channel received: {}",e);
-              }
-            }
+        let rx1= Arc::new(self.rx);
+        let shared_rx = rx1.clone();
 
-            thread::sleep(time::Duration::from_millis(2000));
-        });
+        let _tx1= &Arc::new(Mutex::new(self.tx));
+        let _shared_tx1 = _tx1.clone();
 
+        let _handle_write = thread::spawn( move || loop {
+           let message = shared_rx.try_recv();
+           match message {
+             Ok(msg) => {
+               if msg.len() > 0 {
+                 stream_arc.lock().unwrap().write_all(&msg).unwrap(); 
+               }
+             },
+             Err(e) => {
+               println!("Try rx channel received: {}",e);
+             }
+           }
+           thread::sleep(time::Duration::from_millis(2000));
+         });
+        drop(shared_rx);
+        
         let handle_read = thread::spawn(move || loop {
             let mut buff: Vec<u8> = Vec::with_capacity(1024); 
 

@@ -256,13 +256,12 @@ impl<T, P> ServerPacket for Packet<T, P> {
 }
 
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     mod packets {
-        use crate::mqtt_packet::variable_header_packet::{connect_ack_flags, connect_return};
+        use crate::mqtt_packet_service::variable_header_packet::{connect_ack_flags, connect_return};
 
         use super::*;
         #[test]
