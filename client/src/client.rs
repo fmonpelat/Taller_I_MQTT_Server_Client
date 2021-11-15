@@ -57,7 +57,8 @@ impl Client {
         let _stream = Arc::clone(&stream_arc);
 
         let rx = rx.clone();
-        let _handle_write = thread::spawn( move || 
+        let _handle_write = thread::Builder::new().name("Thread: write to stream".to_string())
+        .spawn( move || 
           loop {
             let guard = rx.lock().unwrap();
             match guard.recv() {
@@ -80,7 +81,8 @@ impl Client {
           }
         );
         
-        let handle_read = thread::spawn(move || loop {
+        let handle_read = thread::Builder::new().name("Thread: read from stream".to_string())
+        .spawn(move || loop {
             let mut buff: Vec<u8> = Vec::with_capacity(1024); 
 
             match _stream.lock().unwrap().read_exact(&mut buff) {
