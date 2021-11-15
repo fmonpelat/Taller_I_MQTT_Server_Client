@@ -1,7 +1,6 @@
 use core::time;
 use std::io::{Read, Result, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
-use std::str::from_utf8;
 use std::sync::{Arc};
 use std::{thread};
 use crate::logger::{Logger, Logging};
@@ -26,42 +25,37 @@ impl Server {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
     
     Ok( loop {
-        match stream.read(&mut buff) {
-            Ok(_size) => {
-                //  send pong if ping msg is received
-                match from_utf8(&buff) {
-                    Ok(packet) => {
-                        match packet {
-                            "Ping..." => {
-                                println!("Ping received! \n");
-                                if let Err(e) = stream.write_all(b"Pong...") {
-                                    println!("Client disconnect");
-                                    return Err(e) // Send client id when write_all fails
-                                }
-                            }
-                            _ => {
-                                  logger.info(format!("Not understood this packet: {}\n", packet));
-                                  
-                                }
-                        }
-                        thread::sleep(time::Duration::from_millis(2000));
-                        
+      match stream.read(&mut buff) {
+        Ok(_size) => {
+          if buff.len() > 0 {
+            match buff[0] {
+                0x10 => {
+                    println!("Connect received! \n");
+                    logger.info(format!("Peer connected: {}",stream.local_addr().unwrap()));
+                    if let Err(e) = stream.write_all(b"0x20") {
+                        println!("Client disconnect");
+                        return Err(e) // Send client id when write_all fails
                     }
-                    Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-                };
-                
+                },
+                _ => {
+                    println!("Unknown command received! {:?}\n", buff);
+                    logger.info(format!("Not understood this packet: {:?}\n", buff));
+                }
             }
-            Err(_) => {
-                println!(
-                    "An error occurred, terminating connection with {}",
-                    stream.peer_addr().unwrap()
-                );
-                stream.shutdown(Shutdown::Both).unwrap();
-                break
-            }
-        }
-    } )
-	}
+            thread::sleep(time::Duration::from_millis(2000));            
+          }
+        },
+        Err(_) => {
+          println!(
+            "An error occurred, terminating connection with {}",
+            stream.peer_addr().unwrap()
+          );
+          stream.shutdown(Shutdown::Both).unwrap();
+          break
+        },
+      }
+    })
+}
 
   pub fn connect(&self) -> Result<()> {
 	self.logger.debug("ready to binding".to_string());
