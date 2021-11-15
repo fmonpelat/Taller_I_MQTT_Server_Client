@@ -83,7 +83,9 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
         let vec: Vec<u8> = self.header.value().iter().cloned()
         .chain(
             variable_header.iter().cloned().chain(
-                payload.iter().cloned())
+                (payload.len() as u16).to_be_bytes().iter().cloned().chain(
+                    payload.iter().cloned())
+            )
         ).collect();
 
         for i in vec {
@@ -340,7 +342,9 @@ mod tests {
                 (topic_name.len() as u16).to_be_bytes().iter().copied().chain(
                     topic_name.as_bytes().iter().copied().chain(
                         packet_identifier.iter().copied().chain(
-                            payload.as_bytes().iter().copied()
+                            (payload.len() as u16).to_be_bytes().iter().copied().chain(
+                                payload.as_bytes().iter().copied()
+                            )
                         )
                     )
                 )
