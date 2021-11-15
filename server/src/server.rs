@@ -29,10 +29,10 @@ impl Server {
         Ok(_size) => {
           if buff.len() > 0 {
             match buff[0] {
-                0x10 => {
-                    println!("Connect received! \n");
-                    logger.info(format!("Peer connected: {}",stream.local_addr().unwrap()));
-                    if let Err(e) = stream.write_all(b"0x20") {
+                0x10 => {  // TODO: use mqtt control mod packet type
+                    println!("Connect packet received \n");
+                    logger.info(format!("Peer mqtt connected: {}",stream.peer_addr().unwrap()));
+                    if let Err(e) = stream.write_all(b"0x20") { // TODO: use mqtt control mod packet type
                         println!("Client disconnect");
                         return Err(e) // Send client id when write_all fails
                     }
