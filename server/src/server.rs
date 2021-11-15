@@ -27,12 +27,13 @@ impl Server {
     Ok( loop {
       match stream.read(&mut buff) {
         Ok(_size) => {
-          if buff.len() > 0 {
+          println!("{:?}", buff);
+          if _size > 0 {
             match buff[0] {
                 0x10 => {  // TODO: use mqtt control mod packet type
                     println!("Connect packet received \n");
                     logger.info(format!("Peer mqtt connected: {}",stream.peer_addr().unwrap()));
-                    if let Err(e) = stream.write_all(b"0x20") { // TODO: use mqtt control mod packet type
+                    if let Err(e) = stream.write_all(b"32") { // TODO: use mqtt control mod packet type
                         println!("Client disconnect");
                         return Err(e) // Send client id when write_all fails
                     }
@@ -68,12 +69,23 @@ impl Server {
         self.logger.info("start listening to clients".to_string());
         match stream {
             Ok(stream) => {
-                self.logger.info(format!("New connection: {}",stream.peer_addr().unwrap()));
+                let peer = stream.peer_addr().unwrap();
+                self.logger.info(format!("New connection: {}", peer));
                 let logger = self.logger.clone();
-                thread::spawn(move || {
+
+                thread::Builder::new().name("thread peer: ".to_string()+peer.to_string().as_str())
+                .spawn(move || {
                     // connection succeeded
-                    Server::handle_client(stream, logger)
-                });
+                    println!("Connection from {}", peer);
+                    match Server::handle_client(stream, logger) {
+                        Ok(_) => {
+                            println!("Connection with {} closed", peer);
+                        },
+                        Err(e) => {
+                            println!("Error: {}", e);
+                        },
+                    }
+                })?;
             }
             Err(e) => { /* connection failed */
                 println!("Error: {}", e);
