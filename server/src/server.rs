@@ -1,7 +1,6 @@
 use core::time;
 use std::io::{Read, Result, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
-use std::str::from_utf8;
 use std::sync::{Arc};
 use std::{thread};
 use crate::logger::{Logger, Logging};
@@ -26,42 +25,42 @@ impl Server {
     let mut buff = [0_u8; 7]; // using 50 u8 buffer
     
     Ok( loop {
-        match stream.read(&mut buff) {
-            Ok(_size) => {
-                //  send pong if ping msg is received
-                match from_utf8(&buff) {
-                    Ok(packet) => {
-                        match packet {
-                            "Ping..." => {
-                                println!("Ping received! \n");
-                                if let Err(e) = stream.write_all(b"Pong...") {
-                                    println!("Client disconnect");
-                                    return Err(e) // Send client id when write_all fails
-                                }
-                            }
-                            _ => {
-                                  logger.info(format!("Not understood this packet: {}\n", packet));
-                                  
-                                }
-                        }
-                        thread::sleep(time::Duration::from_millis(2000));
-                        
+      match stream.read(&mut buff) {
+        Ok(_size) => {
+          println!("{:?}", buff);
+          if _size > 0 {
+            match buff[0] {
+                0x10 => {  // TODO: use mqtt control mod packet type
+                    println!("Connect packet received \n");
+                    logger.info(format!("Peer mqtt connected: {}",stream.peer_addr()?));
+                    if let Err(e) = stream.write_all(b"32") { // TODO: use mqtt control mod packet type
+                        println!("Client disconnect");
+                        return Err(e) // Send client id when write_all fails
                     }
-                    Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-                };
-                
+                },
+                0x30 => {
+                    println!("Publish packet received \n");
+                    logger.info(format!("Peer mqtt publish: {}",stream.peer_addr()?));
+                },
+                _ => {
+                    println!("Unknown command received! {:?}\n", buff);
+                    logger.info(format!("Not understood this packet: {:?}\n", buff));
+                }
             }
-            Err(_) => {
-                println!(
-                    "An error occurred, terminating connection with {}",
-                    stream.peer_addr().unwrap()
-                );
-                stream.shutdown(Shutdown::Both).unwrap();
-                break
-            }
-        }
-    } )
-	}
+            thread::sleep(time::Duration::from_millis(2000));            
+          }
+        },
+        Err(_) => {
+          println!(
+            "An error occurred, terminating connection with {}",
+            stream.peer_addr()?
+          );
+          stream.shutdown(Shutdown::Both)?;
+          break
+        },
+      }
+    })
+}
 
   pub fn connect(&self) -> Result<()> {
 	self.logger.debug("ready to binding".to_string());
@@ -74,12 +73,23 @@ impl Server {
         self.logger.info("start listening to clients".to_string());
         match stream {
             Ok(stream) => {
-                self.logger.info(format!("New connection: {}",stream.peer_addr().unwrap()));
+                let peer = stream.peer_addr()?;
+                self.logger.info(format!("New connection: {}", peer));
                 let logger = self.logger.clone();
-                thread::spawn(move || {
+
+                thread::Builder::new().name("thread peer: ".to_string()+peer.to_string().as_str())
+                .spawn(move || {
                     // connection succeeded
-                    Server::handle_client(stream, logger)
-                });
+                    println!("Connection from {}", peer);
+                    match Server::handle_client(stream, logger) {
+                        Ok(_) => {
+                            println!("Connection with {} closed", peer);
+                        },
+                        Err(e) => {
+                            println!("Error: {}", e);
+                        },
+                    }
+                })?;
             }
             Err(e) => { /* connection failed */
                 println!("Error: {}", e);

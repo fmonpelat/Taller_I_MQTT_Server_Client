@@ -83,7 +83,9 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
         let vec: Vec<u8> = self.header.value().iter().cloned()
         .chain(
             variable_header.iter().cloned().chain(
-                payload.iter().cloned())
+                (payload.len() as u16).to_be_bytes().iter().cloned().chain(
+                    payload.iter().cloned())
+            )
         ).collect();
 
         for i in vec {
@@ -159,13 +161,13 @@ impl<T, P> ClientPacket for Packet<T, P> {
             remaining_length_0: vec![0],
         };
         // building the struct packet
-        return Packet {
+        Packet {
             header,
             has_variable_header: false,
             variable_header: VariableHeader::default(),
             has_payload: false,
             payload: Payload::default(),
-        };
+        }
     }
 
     fn publish(&self, dup: u8, qos: u8, retain: u8, topic_name: String, message: String) -> Packet<VariableHeaderPublish, PublishPayload> {
@@ -190,13 +192,13 @@ impl<T, P> ClientPacket for Packet<T, P> {
         let mut packet = Packet {
             header,
             has_variable_header: true,
-            variable_header: variable_header,
+            variable_header,
             has_payload: true,
             payload,
         };
         let remaining_length = (packet.variable_header.value().len() + packet.payload.value().len()) as u32;
         packet.header.set_remaining_length(remaining_length);
-        return packet;
+        packet
     }
 }
 
@@ -245,13 +247,13 @@ impl<T, P> ServerPacket for Packet<T, P> {
             remaining_length_0: vec![0],
         };
         // building the struct packet
-        return Packet {
+         Packet {
             header,
             has_variable_header: false,
             variable_header: VariableHeader::default(),
             has_payload: false,
             payload: Payload::default(),
-        };
+        }
     }
 }
 
@@ -261,7 +263,7 @@ mod tests {
     use super::*;
 
     mod packets {
-        use crate::mqtt_packet::variable_header_packet::{connect_ack_flags, connect_return};
+        use crate::mqtt_packet_service::variable_header_packet::{connect_ack_flags, connect_return};
 
         use super::*;
         #[test]
@@ -340,7 +342,9 @@ mod tests {
                 (topic_name.len() as u16).to_be_bytes().iter().copied().chain(
                     topic_name.as_bytes().iter().copied().chain(
                         packet_identifier.iter().copied().chain(
-                            payload.as_bytes().iter().copied()
+                            (payload.len() as u16).to_be_bytes().iter().copied().chain(
+                                payload.as_bytes().iter().copied()
+                            )
                         )
                     )
                 )
