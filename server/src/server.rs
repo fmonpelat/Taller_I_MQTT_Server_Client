@@ -38,6 +38,10 @@ impl Server {
                         return Err(e) // Send client id when write_all fails
                     }
                 },
+                0x30 => {
+                    println!("Publish packet received \n");
+                    logger.info(format!("Peer mqtt publish: {}",stream.peer_addr().unwrap()));
+                },
                 _ => {
                     println!("Unknown command received! {:?}\n", buff);
                     logger.info(format!("Not understood this packet: {:?}\n", buff));

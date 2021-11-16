@@ -39,16 +39,16 @@ impl Client {
   }
 
   pub fn connect(&self) {
-    let Self {
-      server_host,
-      server_port,
-      tx: _,
-      rx,
-    } = self;
+    // let Self {
+    //   server_host,
+    //   server_port,
+    //   tx: _,
+    //   rx,
+    // } = self;
 
-    match TcpStream::connect(server_host.to_string() + ":" + &server_port) {
+    match TcpStream::connect(self.server_host.to_string() + ":" + &self.server_port) {
       Ok(mut stream) => {
-        println!("Successfully connected to server in port {}", server_port);
+        println!("Successfully connected to server in port {}", self.server_port);
 
         let msg: Vec<u8> = vec![0x10]; // TODO : send connect packet value
         stream.write_all(&(msg.clone())).unwrap();
@@ -56,7 +56,7 @@ impl Client {
         let stream_arc = Arc::new(Mutex::new(stream));
         let _stream = Arc::clone(&stream_arc);
 
-        let rx = rx.clone();
+        let rx = self.rx.clone();
         let _handle_write = thread::Builder::new().name("Thread: write to stream".to_string())
         .spawn( move || 
           loop {
@@ -69,7 +69,7 @@ impl Client {
                     // Drop the `MutexGuard` to allow other threads to make use of rx
                     drop(guard);
 
-                    thread::sleep(Duration::from_millis(500));
+                    thread::sleep(Duration::from_millis(50));
                 },
                 Err(e) => {
                     println!("Thread client write got a error: {:?}", e);
@@ -77,7 +77,7 @@ impl Client {
                 }
             };
             // TODO: this sleep does not need to be here on production
-            thread::sleep(time::Duration::from_millis(1000));
+            thread::sleep(time::Duration::from_millis(30));
           }
         );
         
@@ -100,7 +100,7 @@ impl Client {
                   println!("Failed to receive data: {}", e);
               }
             }
-            thread::sleep(time::Duration::from_millis(600));
+            thread::sleep(time::Duration::from_millis(60));
         });
         // let _res = handle_read.join();
       },

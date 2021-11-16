@@ -2,7 +2,6 @@ mod logger;
 mod server;
 use crate::logger::{Logger, Logging};
 use crate::server::Server;
-mod mqtt_packet;
 
 fn main() -> Result<(), ()> {
     let file_name = "../log.txt";
