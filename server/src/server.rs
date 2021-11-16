@@ -32,7 +32,7 @@ impl Server {
             match buff[0] {
                 0x10 => {  // TODO: use mqtt control mod packet type
                     println!("Connect packet received \n");
-                    logger.info(format!("Peer mqtt connected: {}",stream.peer_addr().unwrap()));
+                    logger.info(format!("Peer mqtt connected: {}",stream.peer_addr()?));
                     if let Err(e) = stream.write_all(b"32") { // TODO: use mqtt control mod packet type
                         println!("Client disconnect");
                         return Err(e) // Send client id when write_all fails
@@ -40,7 +40,7 @@ impl Server {
                 },
                 0x30 => {
                     println!("Publish packet received \n");
-                    logger.info(format!("Peer mqtt publish: {}",stream.peer_addr().unwrap()));
+                    logger.info(format!("Peer mqtt publish: {}",stream.peer_addr()?));
                 },
                 _ => {
                     println!("Unknown command received! {:?}\n", buff);
@@ -53,9 +53,9 @@ impl Server {
         Err(_) => {
           println!(
             "An error occurred, terminating connection with {}",
-            stream.peer_addr().unwrap()
+            stream.peer_addr()?
           );
-          stream.shutdown(Shutdown::Both).unwrap();
+          stream.shutdown(Shutdown::Both)?;
           break
         },
       }
@@ -73,7 +73,7 @@ impl Server {
         self.logger.info("start listening to clients".to_string());
         match stream {
             Ok(stream) => {
-                let peer = stream.peer_addr().unwrap();
+                let peer = stream.peer_addr()?;
                 self.logger.info(format!("New connection: {}", peer));
                 let logger = self.logger.clone();
 
