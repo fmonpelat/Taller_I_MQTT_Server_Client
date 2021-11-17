@@ -34,6 +34,26 @@ impl Packet<VariableHeader, Payload> {
             payload: Payload::default(),
         }
     }
+    pub fn unvalue(x: Vec<u8>) -> Packet<VariableHeader, Payload> {
+        let mut packet = Packet::new();
+        let mut absolute_index: usize = 0;
+        let mut readed: usize = 0;
+
+        packet.header = Header::unvalue(x.clone(), &mut readed);
+        absolute_index += readed;
+
+        packet.variable_header = VariableHeader::unvalue(x[absolute_index.. x.len()].to_vec(), &mut readed);
+        if readed > 0 {
+            packet.has_variable_header = true;
+        }
+        absolute_index += readed;
+
+        packet.payload = Payload::unvalue(x[absolute_index.. x.len()].to_vec(), &mut readed);
+        if readed > 0 {
+            packet.has_payload = true;
+        }
+        packet
+    }
     #[allow(dead_code)]
     fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
@@ -117,7 +137,6 @@ impl<T, P> ClientPacket for Packet<T, P> {
             connect_flags: connect_flags::CLEAN_SESSION, // what connect flags do i need?
             keep_alive: 0x00,
         };
-        // do we need a payload if there is a connect?
         let payload = Payload {
             client_identifier,
             ..Payload::default()
@@ -176,12 +195,8 @@ impl<T, P> ClientPacket for Packet<T, P> {
             control_flags: dup | qos | retain,
             remaining_length_0: vec![0],
         };
-        let topic_name_len = topic_name.len() as u16;
-        let mut topic_name_bytes:Vec<u8> = vec![(topic_name_len>>8) as u8, (topic_name_len & 0xFF) as u8];
-        topic_name_bytes.extend(topic_name.bytes());
-
         let variable_header = VariableHeaderPublish {
-            topic_name: topic_name_bytes,
+            topic_name: topic_name.as_bytes().to_vec(),
             packet_identifier: 10, // TODO: is this conformed to 3.1.1???
         };
 
@@ -267,6 +282,24 @@ mod tests {
 
         use super::*;
         #[test]
+        fn test_unvalue_variableheader_payload() {
+            let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
+            let client_identifier = String::from("testId");
+            let connect_stub: Vec<u8> = connect_head_stub.iter().copied().chain(
+                (client_identifier.len() as u16).to_be_bytes().iter().copied().chain(
+                    client_identifier.as_bytes().iter().copied()
+                )
+            ).collect();
+            let packet = Packet::<VariableHeader, Payload>::new();
+            let packet = packet.connect(client_identifier);
+            let value = packet.value();
+            // println!("packet bytes: {:?}", value);
+            let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(value);
+            // println!("unvalue {:?}", unvalued_packet);
+            assert_eq!(connect_stub, unvalued_packet.value());
+        }
+
+        #[test]
         fn check_connect_packet() {
             let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
             let client_identifier = String::from("testId");
@@ -334,13 +367,15 @@ mod tests {
             let dup = control_flags::DUP;
             let qos = control_flags::QOS0;
             let retain = control_flags::RETAIN;
-            let header = vec![control_type::PUBLISH + ((dup | qos | retain) as u8), 24]; // length of 24 for this example
+            let header = vec![(control_type::PUBLISH + ((dup | qos | retain) as u8)) as u8, 24]; // length of 24 for this example
             let topic_name = String::from("testTopic");
+            let topic_name_vec = "testTopic".as_bytes().to_vec();
             let packet_identifier:Vec<u8> = vec![0, 10];
             let payload = String::from("testPayload");
+
             let publish_stub: Vec<u8> = header.iter().copied().chain(
-                (topic_name.len() as u16).to_be_bytes().iter().copied().chain(
-                    topic_name.as_bytes().iter().copied().chain(
+                (topic_name_vec.len() as u16).to_be_bytes().iter().copied().chain(
+                    topic_name_vec.iter().copied().chain(
                         packet_identifier.iter().copied().chain(
                             (payload.len() as u16).to_be_bytes().iter().copied().chain(
                                 payload.as_bytes().iter().copied()

@@ -42,6 +42,7 @@ pub trait PacketHeader {
     fn encode_remaining_length(&self, x: u32) -> Vec<u8>;
     fn set_remaining_length(&mut self, x: u32);
     fn value(&self) -> Vec<u8>;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> Header;
 }
 
 impl PacketHeader for Header {
@@ -53,6 +54,27 @@ impl PacketHeader for Header {
             header_vec.push(*i);
         }
         header_vec
+    }
+
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> Header {
+        *readed = 0;
+        let control_type = x[0] & 0xF0;
+        let control_flags = x[0] & 0x0F;
+        let mut remaining_length_0: Vec<u8> = Vec::with_capacity(4);
+        let mut i = 1;
+        let mut stopping_bit = x[i] & 0x80;
+        remaining_length_0.push(x[i]);
+        while stopping_bit != 0 {
+            i += 1;
+            remaining_length_0.push(x[i]);
+            stopping_bit = x[i] & 0x80;
+        }
+        *readed = (i + 1) as usize;
+        Header {
+            control_type,
+            control_flags,
+            remaining_length_0,
+        }
     }
 
     fn get_cmd_type(&self) -> u8 {
@@ -129,6 +151,52 @@ mod tests {
     use super::*;
     use std::panic;
     
+    #[test]
+    fn check_header_unvalue() {
+        let mut header = Header::default();
+        let control_type = control_type::CONNECT; // 0x10
+        let control_flags = control_flags::RESERVED; // 0x00
+        header.control_type = control_type;
+        header.control_flags = control_flags;
+
+        // one byte remaining length
+        header.set_remaining_length(90);
+        let remaining_length_0_stub = header.remaining_length_0.clone();
+
+        let value: Vec<u8> = header.value();
+        let mut readed = 0;
+        let new_unvalued_header = Header::unvalue(value, &mut readed);
+        
+        assert!(new_unvalued_header.control_type == control_type);
+        assert!(new_unvalued_header.control_flags == control_flags);
+        assert!(remaining_length_0_stub.eq(&new_unvalued_header.remaining_length_0));
+
+        // three bytes remaining length
+        header.set_remaining_length(2097152);
+        let remaining_length_0_stub = header.remaining_length_0.clone();
+
+        let value: Vec<u8> = header.value();
+        let mut readed = 0;
+        let new_unvalued_header = Header::unvalue(value, &mut readed);
+        
+        assert!(new_unvalued_header.control_type == control_type);
+        assert!(new_unvalued_header.control_flags == control_flags);
+        assert!(remaining_length_0_stub.eq(&new_unvalued_header.remaining_length_0));
+
+        // four bytes remaining length
+        header.set_remaining_length(16384);
+        let remaining_length_0_stub = header.remaining_length_0.clone();
+
+        let value: Vec<u8> = header.value();
+        let mut readed = 0;
+        let new_unvalued_header = Header::unvalue(value, &mut readed);
+        
+        assert!(new_unvalued_header.control_type == control_type);
+        assert!(new_unvalued_header.control_flags == control_flags);
+        assert!(remaining_length_0_stub.eq(&new_unvalued_header.remaining_length_0));
+    }
+
+
     #[test]
     fn check_encode_remaining_len() {
         let header = Header::default();
