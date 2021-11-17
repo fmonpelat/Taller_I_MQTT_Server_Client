@@ -34,7 +34,6 @@ impl PacketPayload for Payload {
         let mut will_topic_len: u16 = 0;
         let mut will_message_len: u16 = 0;
         let mut user_name_len: u16 = 0;
-        let mut password_len: u16 = 0;
         let mut client_identifier = String::new();
         let mut will_topic = String::new();
         let mut will_message = String::new();
@@ -43,25 +42,25 @@ impl PacketPayload for Payload {
 
         if index > 0 {
             client_identifier_len = x[0] as u16 + (x[1] as u16);
-            index = index - 2;
+            index -= 2;
             client_identifier =
                 String::from_utf8(x[2..(2 + client_identifier_len as usize)].to_vec()).unwrap();
             // println!("client_identifier_len: {}", client_identifier_len);
             // println!("client_identifier: {}", client_identifier);
-            index = index - client_identifier_len as usize;
+            index -= client_identifier_len as usize;
         }
 
         if index > 0 {
             will_topic_len = x[2 + client_identifier_len as usize] as u16
                 + (x[3 + client_identifier_len as usize] as u16);
-            index = index - 2;
+            index -= 2;
             will_topic = String::from_utf8(
                 x[4 + client_identifier_len as usize
                     ..(4 + client_identifier_len as usize + will_topic_len as usize)]
                     .to_vec(),
             )
             .unwrap();
-            index = index - will_topic_len as usize;
+            index -= will_topic_len as usize;
             // println!("will_topic_len: {}", will_topic_len);
             // println!("will_topic: {}", will_topic);
         }
@@ -70,7 +69,7 @@ impl PacketPayload for Payload {
             will_message_len = x[4 + client_identifier_len as usize + will_topic_len as usize]
                 as u16
                 + (x[5 + client_identifier_len as usize + will_topic_len as usize] as u16);
-            index = index - 2;
+            index -= 2;
             will_message = String::from_utf8(
                 x[6 + client_identifier_len as usize + will_topic_len as usize
                     ..(6 + client_identifier_len as usize
@@ -79,7 +78,7 @@ impl PacketPayload for Payload {
                     .to_vec(),
             )
             .unwrap();
-            index = index - will_message_len as usize;
+            index -= will_message_len as usize;
             // println!("will_message_len: {}", will_message_len);
             // println!("will_message: {}", will_message);
         }
@@ -93,7 +92,7 @@ impl PacketPayload for Payload {
                     + client_identifier_len as usize
                     + will_topic_len as usize
                     + will_message_len as usize] as u16);
-            index = index - 2;
+            index -= 2;
             user_name = String::from_utf8(
                 x[8 + client_identifier_len as usize
                     + will_topic_len as usize
@@ -105,13 +104,13 @@ impl PacketPayload for Payload {
                     .to_vec(),
             )
             .unwrap();
-            index = index - user_name_len as usize;
+            index -= user_name_len as usize;
             // println!("user_name_len: {}", user_name_len);
             // println!("user_name: {}", user_name);
         }
 
         if index > 0 {
-            password_len = x[8
+            let password_len = x[8
                 + client_identifier_len as usize
                 + will_topic_len as usize
                 + will_message_len as usize
@@ -121,7 +120,7 @@ impl PacketPayload for Payload {
                     + will_topic_len as usize
                     + will_message_len as usize
                     + user_name_len as usize] as u16);
-            index = index - 2;
+            index -= 2;
             password = String::from_utf8(
                 x[10 + client_identifier_len as usize
                     + will_topic_len as usize
@@ -136,18 +135,18 @@ impl PacketPayload for Payload {
                     .to_vec(),
             )
             .unwrap();
-            index = index - password_len as usize;
+            index -= password_len as usize;
             // println!("password_len: {}", password_len);
             // println!("password: {}", password);
         }
         *readed = x.len() - index;
 
         Payload {
-            client_identifier: client_identifier,
-            will_topic: will_topic,
-            will_message: will_message,
-            user_name: user_name,
-            password: password,
+            client_identifier,
+            will_topic,
+            will_message,
+            user_name,
+            password,
         }
     }
 
@@ -197,7 +196,7 @@ pub trait PacketPublishPayload {
 impl PacketPublishPayload for PublishPayload {
     fn unvalue(x: Vec<u8>, readed: &mut usize) -> PublishPayload {
         *readed = 0;
-        if x.len() == 0 {
+        if x.is_empty() {
             return PublishPayload::default();
         }
         let payload_len = x[0] as u16 + (x[1] as u16);
@@ -220,7 +219,6 @@ impl PacketPublishPayload for PublishPayload {
 
 #[cfg(test)]
 mod tests {
-    use std::ptr::read_unaligned;
 
     use super::*;
 

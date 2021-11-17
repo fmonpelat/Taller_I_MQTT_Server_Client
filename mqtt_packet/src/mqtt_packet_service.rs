@@ -229,13 +229,13 @@ impl<T, P> ClientPacket for Packet<T, P> {
             remaining_length_0: vec![0],
         };
         // building the struct packet
-        return Packet {
+        Packet {
             header,
             has_variable_header: false,
             variable_header: VariableHeader::default(),
             has_payload: false,
             payload: Payload::default(),
-        };
+        }
     }
 
     fn publish(
@@ -261,14 +261,14 @@ impl<T, P> ClientPacket for Packet<T, P> {
         let mut packet = Packet {
             header,
             has_variable_header: true,
-            variable_header: variable_header,
+            variable_header,
             has_payload: true,
             payload,
         };
         let remaining_length =
             (packet.variable_header.value().len() + packet.payload.value().len()) as u32;
         packet.header.set_remaining_length(remaining_length);
-        return packet;
+        packet
     }
 }
 
@@ -324,13 +324,13 @@ impl<T, P> ServerPacket for Packet<T, P> {
             remaining_length_0: vec![0],
         };
         // building the struct packet
-        return Packet {
+        Packet {
             header,
             has_variable_header: false,
             variable_header: VariableHeader::default(),
             has_payload: false,
             payload: Payload::default(),
-        };
+        }
     }
 }
 
