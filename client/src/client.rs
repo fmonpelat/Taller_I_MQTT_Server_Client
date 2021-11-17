@@ -30,7 +30,7 @@ impl Client {
     }
   }
 
-  pub fn publish(&self, topic: String, payload: String) {
+  pub fn publish(&self, _topic: String, _payload: String) {
     let Self { server_host: _, server_port: _, tx, rx: _ } = self;
     let msg = vec![0x30];
 
@@ -51,7 +51,7 @@ impl Client {
         println!("Successfully connected to server in port {}", self.server_port);
 
         let msg: Vec<u8> = vec![0x10]; // TODO : send connect packet value
-        stream.write_all(&(msg.clone())).unwrap();
+        stream.write_all(&(msg)).unwrap();
 
         let stream_arc = Arc::new(Mutex::new(stream));
         let _stream = Arc::clone(&stream_arc);
@@ -81,13 +81,13 @@ impl Client {
           }
         );
         
-        let handle_read = thread::Builder::new().name("Thread: read from stream".to_string())
+        let _handle_read = thread::Builder::new().name("Thread: read from stream".to_string())
         .spawn(move || loop {
             let mut buff: Vec<u8> = Vec::with_capacity(1024); 
 
             match _stream.lock().unwrap().read_exact(&mut buff) {
               Ok(_) => {
-                if buff.len() > 0 {
+                if !buff.is_empty() {
                   println!("Thread client read got a msg: {:?}", buff);
                   println!("[client] buff:{:?}", buff);
                   match buff[0] {
