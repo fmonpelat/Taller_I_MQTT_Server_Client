@@ -36,6 +36,7 @@ pub struct VariableHeader {
 
 pub trait PacketVariableHeader {
     fn value(&self) -> Vec<u8>;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> VariableHeader;
 }
 
 impl PacketVariableHeader for VariableHeader {
@@ -50,6 +51,20 @@ impl PacketVariableHeader for VariableHeader {
         variable_header_vec.push((self.keep_alive & 0xFF) as u8);
         variable_header_vec
     }
+
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> VariableHeader {
+        let protocol_name = x[0..6].to_vec();
+        let protocol_level = x[6];
+        let connect_flags = x[7];
+        let keep_alive = (x[8] as u16) << 8 | (x[9] as u16);
+        *readed = 10;
+        VariableHeader {
+            protocol_name,
+            protocol_level,
+            connect_flags,
+            keep_alive,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -60,26 +75,38 @@ pub struct VariableHeaderConnack {
 
 pub trait PacketVariableHeaderConnack {
     fn value(&self) -> Vec<u8>;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> VariableHeaderConnack;
 }
 
 impl PacketVariableHeaderConnack for VariableHeaderConnack {
     fn value(&self) -> Vec<u8> {
         vec![self.acknoledge_flags, self.return_code]
     }
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> VariableHeaderConnack {
+        *readed = 2;
+        VariableHeaderConnack {
+            acknoledge_flags: x[0],
+            return_code: x[1],
+        }
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct VariableHeaderPublish {
-    pub topic_name: Vec<u8>, // 2 bytes
+    pub topic_name: Vec<u8>,
     pub packet_identifier: u16, // 2 bytes
 }
 pub trait PacketVariableHeaderPublish {
     fn value(&self) -> Vec<u8>;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> VariableHeaderPublish;
 }
 
 impl PacketVariableHeaderPublish for VariableHeaderPublish {
     fn value(&self) -> Vec<u8> {
-        let mut variable_header_vec: Vec<u8> = Vec::with_capacity(7);
+        let mut variable_header_vec: Vec<u8> = Vec::with_capacity(1024);
+        let topic_name_len = self.topic_name.len();
+        variable_header_vec.push((topic_name_len >> 8) as u8);
+        variable_header_vec.push((topic_name_len & 0xFF) as u8);
         for i in &self.topic_name {
             variable_header_vec.push(*i);
         }
@@ -87,12 +114,77 @@ impl PacketVariableHeaderPublish for VariableHeaderPublish {
         variable_header_vec.push((self.packet_identifier & 0xFF) as u8);
         variable_header_vec
     }
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> VariableHeaderPublish {
+        let topic_name_len = (x[0] as u16) << 8 | (x[1] as u16);
+        let topic_name = x[2..(2 + topic_name_len as usize)].to_vec();
+        let packet_identifier = (x[2 + topic_name_len as usize] as u16) << 8 | (x[3 + topic_name_len as usize] as u16);
+        *readed = 4 + topic_name_len as usize;
+        VariableHeaderPublish {
+            topic_name,
+            packet_identifier,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     
+    #[test]
+    fn unvalue_variable_header_publish() {
+        let variable_header_publish = VariableHeaderPublish {
+            topic_name: "Temperature".as_bytes().to_vec(),
+            packet_identifier: 0x0001,
+        };
+        let value = variable_header_publish.value();
+        // println!("value: {:?}", value);
+        let mut readed = 0;
+        let unvalue = VariableHeaderPublish::unvalue(value, &mut readed);
+        // println!("unvalue: {:?}", unvalue);
+        assert_eq!(variable_header_publish.topic_name, unvalue.topic_name);
+        assert_eq!(variable_header_publish.packet_identifier, unvalue.packet_identifier);
+        assert_eq!(4 + variable_header_publish.topic_name.len(), readed);
+    }
+
+    #[test]
+    fn unvalue_variable_header_connack() {
+        let variable_header_connack = VariableHeaderConnack {
+            acknoledge_flags: 0x01,
+            return_code: 0x02,
+        };
+        let value = variable_header_connack.value();
+        let mut readed = 0;
+        let unvalue = VariableHeaderConnack::unvalue(value, &mut readed);
+        assert_eq!(unvalue.acknoledge_flags, variable_header_connack.acknoledge_flags);
+        assert_eq!(unvalue.return_code, variable_header_connack.return_code);
+        assert_eq!(2, readed);
+    }
+
+    #[test]
+    fn unvalue_variable_header() {
+        let protocol_name = [0x00, 0x04, b'M', b'Q', b'T', b'T'].to_vec();
+        let protocol_name_stub = protocol_name.clone();
+        let protocol_level = 0x04;
+        let connect_flags = connect_flags::CLEAN_SESSION;
+        let keep_alive = 0xFFF;
+        let variable_header = VariableHeader {
+            protocol_name: protocol_name,
+            protocol_level: protocol_level,
+            connect_flags: connect_flags,
+            keep_alive: keep_alive,
+        };
+        let value: Vec<u8> = variable_header.value();
+        // println!("{:?}", value);
+        let mut readed = 0;
+        let unvalue = VariableHeader::unvalue(value, &mut readed);
+        // println!("{:?}", unvalue);
+        assert!(unvalue.protocol_name.eq(&protocol_name_stub));
+        assert_eq!(unvalue.protocol_level, protocol_level);
+        assert_eq!(unvalue.connect_flags, connect_flags);
+        assert_eq!(unvalue.keep_alive, keep_alive);
+        assert_eq!(10, readed);
+    }
+
     #[test]
     fn variable_header_value() {
         let protocol_name = [0x00, 0x04, b'M', b'Q', b'T', b'T'].to_vec();
