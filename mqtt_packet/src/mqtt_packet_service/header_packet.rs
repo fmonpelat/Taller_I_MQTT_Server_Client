@@ -1,4 +1,3 @@
-
 #[allow(dead_code)]
 pub mod control_type {
     pub const CONNECT: u8 = 0x10;
@@ -30,8 +29,8 @@ pub mod control_flags {
 #[derive(Debug, Default)]
 pub struct Header {
     // total length of 4 bytes (16 bits)
-    pub control_type: u8, // msb byte
-    pub control_flags: u8, // lsb byte
+    pub control_type: u8,            // msb byte
+    pub control_flags: u8,           // lsb byte
     pub remaining_length_0: Vec<u8>, // 4 byte
 }
 // traits and impl for header
@@ -46,7 +45,6 @@ pub trait PacketHeader {
 }
 
 impl PacketHeader for Header {
-
     fn value(&self) -> Vec<u8> {
         let mut header_vec: Vec<u8> = Vec::with_capacity(3);
         header_vec.push(self.get_cmd_type() + self.get_cmd_flags());
@@ -103,12 +101,14 @@ impl PacketHeader for Header {
             let encoded_byte: u8 = array.pop().unwrap();
             {
                 value += (encoded_byte & 127) as u32 * multiplier;
-                if multiplier > 128*128*128*128 {
+                if multiplier > 128 * 128 * 128 * 128 {
                     panic!("Malformed Remaining Length")
                 }
                 multiplier *= 128;
             };
-            if (encoded_byte & 128) == 0 { break }
+            if (encoded_byte & 128) == 0 {
+                break;
+            }
         }
         value as u32
     }
@@ -134,15 +134,16 @@ impl PacketHeader for Header {
                 }
                 return_vec.push(encoded_byte);
             };
-            if x_ == 0 { break }
+            if x_ == 0 {
+                break;
+            }
         }
         return_vec
     }
 
     fn set_remaining_length(&mut self, x: u32) {
-        let vector= self.encode_remaining_length(x);
+        let vector = self.encode_remaining_length(x);
         self.remaining_length_0 = vector;
-        
     }
 }
 
@@ -150,7 +151,7 @@ impl PacketHeader for Header {
 mod tests {
     use super::*;
     use std::panic;
-    
+
     #[test]
     fn check_header_unvalue() {
         let mut header = Header::default();
@@ -166,7 +167,7 @@ mod tests {
         let value: Vec<u8> = header.value();
         let mut readed = 0;
         let new_unvalued_header = Header::unvalue(value, &mut readed);
-        
+
         assert!(new_unvalued_header.control_type == control_type);
         assert!(new_unvalued_header.control_flags == control_flags);
         assert!(remaining_length_0_stub.eq(&new_unvalued_header.remaining_length_0));
@@ -178,7 +179,7 @@ mod tests {
         let value: Vec<u8> = header.value();
         let mut readed = 0;
         let new_unvalued_header = Header::unvalue(value, &mut readed);
-        
+
         assert!(new_unvalued_header.control_type == control_type);
         assert!(new_unvalued_header.control_flags == control_flags);
         assert!(remaining_length_0_stub.eq(&new_unvalued_header.remaining_length_0));
@@ -190,12 +191,11 @@ mod tests {
         let value: Vec<u8> = header.value();
         let mut readed = 0;
         let new_unvalued_header = Header::unvalue(value, &mut readed);
-        
+
         assert!(new_unvalued_header.control_type == control_type);
         assert!(new_unvalued_header.control_flags == control_flags);
         assert!(remaining_length_0_stub.eq(&new_unvalued_header.remaining_length_0));
     }
-
 
     #[test]
     fn check_encode_remaining_len() {
@@ -231,33 +231,33 @@ mod tests {
 
     #[test]
     fn check_remaining_len_upperbounds() {
-        panic::set_hook(Box::new(|_info| {})); 
+        panic::set_hook(Box::new(|_info| {}));
         let mut header = Header::default();
         header.set_remaining_length(268435456);
-        let result = panic::catch_unwind( move || header.decode_remaining_length());
+        let result = panic::catch_unwind(move || header.decode_remaining_length());
         assert!(result.is_err());
     }
 
     #[test]
     fn header_remaining_len() {
         let mut header = Header::default();
-        header.set_remaining_length(0);  // 0 bytes length
+        header.set_remaining_length(0); // 0 bytes length
         assert_eq!(header.decode_remaining_length(), 0);
-       
-        header.set_remaining_length(127);  // 1 bytes length
+
+        header.set_remaining_length(127); // 1 bytes length
         assert_eq!(header.decode_remaining_length(), 127);
-        
+
         header.set_remaining_length(128); // 2 bytes length
         assert_eq!(header.decode_remaining_length(), 128);
 
         header.set_remaining_length(129); // 2 bytes length
         assert_eq!(header.decode_remaining_length(), 129);
 
-        header.set_remaining_length(128*128); // 3 bytes length
-        assert_eq!(header.decode_remaining_length(), 128*128);
+        header.set_remaining_length(128 * 128); // 3 bytes length
+        assert_eq!(header.decode_remaining_length(), 128 * 128);
 
-        header.set_remaining_length(128*128*128); // 4 bytes length
-        assert_eq!(header.decode_remaining_length(), 128*128*128);
+        header.set_remaining_length(128 * 128 * 128); // 4 bytes length
+        assert_eq!(header.decode_remaining_length(), 128 * 128 * 128);
     }
 
     #[test]
@@ -265,10 +265,7 @@ mod tests {
         let control_type = control_type::CONNECT; // 0x10
         let control_flags = control_flags::RESERVED; // 0x00
         let remaining_length_0 = vec![0];
-        let header_stub = vec![
-            control_type + control_flags,
-            remaining_length_0[0],
-        ];
+        let header_stub = vec![control_type + control_flags, remaining_length_0[0]];
         let header = Header {
             control_type: control_type,
             control_flags: control_flags,

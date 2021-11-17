@@ -1,7 +1,6 @@
-
 /// A Payload for a mqtt packet
 /// There are several payloads for a mqtt packet
-/// 
+///
 /// Connect has the payload type Payload
 #[derive(Debug, Default)]
 pub struct Payload {
@@ -45,43 +44,98 @@ impl PacketPayload for Payload {
         if index > 0 {
             client_identifier_len = x[0] as u16 + (x[1] as u16);
             index = index - 2;
-            client_identifier = String::from_utf8(x[2..(2 + client_identifier_len as usize)].to_vec()).unwrap();
+            client_identifier =
+                String::from_utf8(x[2..(2 + client_identifier_len as usize)].to_vec()).unwrap();
             // println!("client_identifier_len: {}", client_identifier_len);
             // println!("client_identifier: {}", client_identifier);
             index = index - client_identifier_len as usize;
         }
 
         if index > 0 {
-            will_topic_len = x[2 + client_identifier_len as usize] as u16 + (x[3 + client_identifier_len as usize] as u16);
+            will_topic_len = x[2 + client_identifier_len as usize] as u16
+                + (x[3 + client_identifier_len as usize] as u16);
             index = index - 2;
-            will_topic = String::from_utf8(x[4 + client_identifier_len as usize..(4 + client_identifier_len as usize + will_topic_len as usize)].to_vec()).unwrap();
+            will_topic = String::from_utf8(
+                x[4 + client_identifier_len as usize
+                    ..(4 + client_identifier_len as usize + will_topic_len as usize)]
+                    .to_vec(),
+            )
+            .unwrap();
             index = index - will_topic_len as usize;
             // println!("will_topic_len: {}", will_topic_len);
             // println!("will_topic: {}", will_topic);
         }
 
         if index > 0 {
-            will_message_len = x[4 + client_identifier_len as usize + will_topic_len as usize] as u16 + (x[5 + client_identifier_len as usize + will_topic_len as usize] as u16);
+            will_message_len = x[4 + client_identifier_len as usize + will_topic_len as usize]
+                as u16
+                + (x[5 + client_identifier_len as usize + will_topic_len as usize] as u16);
             index = index - 2;
-            will_message = String::from_utf8(x[6 + client_identifier_len as usize + will_topic_len as usize..(6 + client_identifier_len as usize + will_topic_len as usize + will_message_len as usize)].to_vec()).unwrap();
+            will_message = String::from_utf8(
+                x[6 + client_identifier_len as usize + will_topic_len as usize
+                    ..(6 + client_identifier_len as usize
+                        + will_topic_len as usize
+                        + will_message_len as usize)]
+                    .to_vec(),
+            )
+            .unwrap();
             index = index - will_message_len as usize;
             // println!("will_message_len: {}", will_message_len);
             // println!("will_message: {}", will_message);
         }
 
         if index > 0 {
-            user_name_len = x[6 + client_identifier_len as usize + will_topic_len as usize + will_message_len as usize] as u16 + (x[7 + client_identifier_len as usize + will_topic_len as usize + will_message_len as usize] as u16);
+            user_name_len = x[6
+                + client_identifier_len as usize
+                + will_topic_len as usize
+                + will_message_len as usize] as u16
+                + (x[7
+                    + client_identifier_len as usize
+                    + will_topic_len as usize
+                    + will_message_len as usize] as u16);
             index = index - 2;
-            user_name = String::from_utf8(x[8 + client_identifier_len as usize + will_topic_len as usize + will_message_len as usize..(8 + client_identifier_len as usize + will_topic_len as usize + will_message_len as usize + user_name_len as usize)].to_vec()).unwrap();
+            user_name = String::from_utf8(
+                x[8 + client_identifier_len as usize
+                    + will_topic_len as usize
+                    + will_message_len as usize
+                    ..(8 + client_identifier_len as usize
+                        + will_topic_len as usize
+                        + will_message_len as usize
+                        + user_name_len as usize)]
+                    .to_vec(),
+            )
+            .unwrap();
             index = index - user_name_len as usize;
             // println!("user_name_len: {}", user_name_len);
             // println!("user_name: {}", user_name);
         }
 
         if index > 0 {
-            password_len = x[8 + client_identifier_len as usize + will_topic_len as usize + will_message_len as usize + user_name_len as usize] as u16 + (x[9 + client_identifier_len as usize + will_topic_len as usize + will_message_len as usize + user_name_len as usize] as u16);
+            password_len = x[8
+                + client_identifier_len as usize
+                + will_topic_len as usize
+                + will_message_len as usize
+                + user_name_len as usize] as u16
+                + (x[9
+                    + client_identifier_len as usize
+                    + will_topic_len as usize
+                    + will_message_len as usize
+                    + user_name_len as usize] as u16);
             index = index - 2;
-            password = String::from_utf8(x[10 + client_identifier_len as usize + will_topic_len as usize + will_message_len as usize + user_name_len as usize..(10 + client_identifier_len as usize + will_topic_len as usize + will_message_len as usize + user_name_len as usize + password_len as usize)].to_vec()).unwrap();
+            password = String::from_utf8(
+                x[10 + client_identifier_len as usize
+                    + will_topic_len as usize
+                    + will_message_len as usize
+                    + user_name_len as usize
+                    ..(10
+                        + client_identifier_len as usize
+                        + will_topic_len as usize
+                        + will_message_len as usize
+                        + user_name_len as usize
+                        + password_len as usize)]
+                    .to_vec(),
+            )
+            .unwrap();
             index = index - password_len as usize;
             // println!("password_len: {}", password_len);
             // println!("password: {}", password);
@@ -107,20 +161,26 @@ impl PacketPayload for Payload {
     fn value(&self) -> Vec<u8> {
         let mut payload_vec: Vec<u8> = Vec::with_capacity(1024);
 
-        let slice: &[&dyn ::std::fmt::Display] = 
-            &[&self.client_identifier, &self.will_topic, &self.will_message, &self.user_name, &self.password];
-        let _parts: Vec<_> = slice.iter().map(
-            |x| {
+        let slice: &[&dyn ::std::fmt::Display] = &[
+            &self.client_identifier,
+            &self.will_topic,
+            &self.will_message,
+            &self.user_name,
+            &self.password,
+        ];
+        let _parts: Vec<_> = slice
+            .iter()
+            .map(|x| {
                 let x_ = (x.to_string().len() as u16).to_be_bytes();
-                payload_vec.extend(
-                    if !x.to_string().is_empty() {
-                        x_.iter()
-                    } else { [].iter() }
-                );
+                payload_vec.extend(if !x.to_string().is_empty() {
+                    x_.iter()
+                } else {
+                    [].iter()
+                });
                 payload_vec.extend(x.to_string().as_bytes());
                 x.to_string()
-            }
-        ).collect();
+            })
+            .collect();
 
         if payload_vec.is_empty() {
             return vec![];
@@ -128,7 +188,6 @@ impl PacketPayload for Payload {
         payload_vec
     }
 }
-
 
 pub trait PacketPublishPayload {
     fn value(&self) -> Vec<u8>;
@@ -144,21 +203,20 @@ impl PacketPublishPayload for PublishPayload {
         let payload_len = x[0] as u16 + (x[1] as u16);
         let payload = String::from_utf8(x[2..(2 + payload_len as usize)].to_vec()).unwrap();
         *readed = 2 + payload_len as usize;
-        PublishPayload {
-            message: payload,
-        }
+        PublishPayload { message: payload }
     }
     fn value(&self) -> Vec<u8> {
         let mut payload_vec: Vec<u8> = Vec::with_capacity(1024);
-        self.message.as_bytes().iter().for_each(|x| payload_vec.push(*x));
+        self.message
+            .as_bytes()
+            .iter()
+            .for_each(|x| payload_vec.push(*x));
         if payload_vec.is_empty() {
             return vec![];
         }
         payload_vec
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -221,6 +279,6 @@ mod tests {
         // let unvalue = Payload::unvalue(value.clone(), &mut readed);
         // println!("{:?}",unvalue);
         assert!(value.len() == len_stub);
-        assert!( stub.eq(&value) );
+        assert!(stub.eq(&value));
     }
 }
