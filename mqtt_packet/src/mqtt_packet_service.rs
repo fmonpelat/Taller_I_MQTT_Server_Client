@@ -2,19 +2,14 @@ mod header_packet;
 use header_packet::{control_flags, control_type, Header, PacketHeader};
 mod variable_header_packet;
 use variable_header_packet::{
-    connect_flags,
-    VariableHeader,
-    PacketVariableHeader,
-    VariableHeaderConnack,
-    PacketVariableHeaderConnack,
-    VariableHeaderPublish,
-    PacketVariableHeaderPublish,
+    connect_flags, PacketVariableHeader, PacketVariableHeaderConnack, PacketVariableHeaderPublish,
+    VariableHeader, VariableHeaderConnack, VariableHeaderPublish,
 };
 mod payload_packet;
-use payload_packet::{Payload, PacketPayload, PublishPayload, PacketPublishPayload };
+use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload};
 
 #[derive(Debug, Default)]
-pub struct Packet<T,P> {
+pub struct Packet<T, P> {
     header: Header,
     has_variable_header: bool,
     variable_header: T,
@@ -42,13 +37,14 @@ impl Packet<VariableHeader, Payload> {
         packet.header = Header::unvalue(x.clone(), &mut readed);
         absolute_index += readed;
 
-        packet.variable_header = VariableHeader::unvalue(x[absolute_index.. x.len()].to_vec(), &mut readed);
+        packet.variable_header =
+            VariableHeader::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
         if readed > 0 {
             packet.has_variable_header = true;
         }
         absolute_index += readed;
 
-        packet.payload = Payload::unvalue(x[absolute_index.. x.len()].to_vec(), &mut readed);
+        packet.payload = Payload::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
         if readed > 0 {
             packet.has_payload = true;
         }
@@ -57,14 +53,29 @@ impl Packet<VariableHeader, Payload> {
     #[allow(dead_code)]
     fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
-        let variable_header = if self.has_variable_header { self.variable_header.value() } else { Vec::new() };
-        let payload = if self.has_payload { self.payload.value()} else { Vec::new() };
+        let variable_header = if self.has_variable_header {
+            self.variable_header.value()
+        } else {
+            Vec::new()
+        };
+        let payload = if self.has_payload {
+            self.payload.value()
+        } else {
+            Vec::new()
+        };
 
-        let vec: Vec<u8> = self.header.value().iter().cloned()
-        .chain(
-            variable_header.iter().cloned().chain(
-                payload.iter().cloned())
-        ).collect();
+        let vec: Vec<u8> = self
+            .header
+            .value()
+            .iter()
+            .cloned()
+            .chain(
+                variable_header
+                    .iter()
+                    .cloned()
+                    .chain(payload.iter().cloned()),
+            )
+            .collect();
 
         for i in vec {
             res.push(i);
@@ -77,14 +88,29 @@ impl Packet<VariableHeaderConnack, Payload> {
     #[allow(dead_code)]
     fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
-        let variable_header = if self.has_variable_header { self.variable_header.value() } else { Vec::new() };
-        let payload = if self.has_payload { self.payload.value()} else { Vec::new() };
+        let variable_header = if self.has_variable_header {
+            self.variable_header.value()
+        } else {
+            Vec::new()
+        };
+        let payload = if self.has_payload {
+            self.payload.value()
+        } else {
+            Vec::new()
+        };
 
-        let vec: Vec<u8> = self.header.value().iter().cloned()
-        .chain(
-            variable_header.iter().cloned().chain(
-                payload.iter().cloned())
-        ).collect();
+        let vec: Vec<u8> = self
+            .header
+            .value()
+            .iter()
+            .cloned()
+            .chain(
+                variable_header
+                    .iter()
+                    .cloned()
+                    .chain(payload.iter().cloned()),
+            )
+            .collect();
 
         for i in vec {
             res.push(i);
@@ -97,41 +123,63 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
     #[allow(dead_code)]
     fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
-        let variable_header = if self.has_variable_header { self.variable_header.value() } else { Vec::new() };
-        let payload = if self.has_payload { self.payload.value()} else { Vec::new() };
+        let variable_header = if self.has_variable_header {
+            self.variable_header.value()
+        } else {
+            Vec::new()
+        };
+        let payload = if self.has_payload {
+            self.payload.value()
+        } else {
+            Vec::new()
+        };
 
-        let vec: Vec<u8> = self.header.value().iter().cloned()
-        .chain(
-            variable_header.iter().cloned().chain(
-                (payload.len() as u16).to_be_bytes().iter().cloned().chain(
-                    payload.iter().cloned())
+        let vec: Vec<u8> = self
+            .header
+            .value()
+            .iter()
+            .cloned()
+            .chain(
+                variable_header.iter().cloned().chain(
+                    (payload.len() as u16)
+                        .to_be_bytes()
+                        .iter()
+                        .cloned()
+                        .chain(payload.iter().cloned()),
+                ),
             )
-        ).collect();
+            .collect();
 
         for i in vec {
             res.push(i);
         }
         res
     }
-}        
+}
 // general implementation for all packets
 
 pub trait ClientPacket {
     fn connect(&self, client_identifier: String) -> Packet<VariableHeader, Payload>;
     fn disconnect(&self) -> Packet<VariableHeader, Payload>;
     fn pingreq(&self) -> Packet<VariableHeader, Payload>;
-    fn publish(&self, dup: u8, qos: u8, retain: u8, topic_name: String, message: String) -> Packet<VariableHeaderPublish, PublishPayload>;
+    fn publish(
+        &self,
+        dup: u8,
+        qos: u8,
+        retain: u8,
+        topic_name: String,
+        message: String,
+    ) -> Packet<VariableHeaderPublish, PublishPayload>;
 }
 impl<T, P> ClientPacket for Packet<T, P> {
-
     fn connect(&self, client_identifier: String) -> Packet<VariableHeader, Payload> {
         let header = Header {
-            control_type: control_type::CONNECT, // 0x10
+            control_type: control_type::CONNECT,    // 0x10
             control_flags: control_flags::RESERVED, // 0x00
             remaining_length_0: vec![0], // what remaining lenght is? (how it is calculated)
         };
         let protocol_name = [0x00, 0x04, b'M', b'Q', b'T', b'T'].to_vec();
-        let variable_header:VariableHeader = VariableHeader {
+        let variable_header: VariableHeader = VariableHeader {
             protocol_name,
             protocol_level: 0x04,
             connect_flags: connect_flags::CLEAN_SESSION, // what connect flags do i need?
@@ -150,7 +198,8 @@ impl<T, P> ClientPacket for Packet<T, P> {
             has_payload: true,
             payload,
         };
-        let remaining_length = (packet.variable_header.value().len() + packet.payload.value().len()) as u32;
+        let remaining_length =
+            (packet.variable_header.value().len() + packet.payload.value().len()) as u32;
         // println!("calculated packet remaining length: {}", remaining_length);
         packet.header.set_remaining_length(remaining_length);
         // println!(" decoded remaining length {:?}", packet.header.decode_remaining_length());
@@ -189,7 +238,14 @@ impl<T, P> ClientPacket for Packet<T, P> {
         }
     }
 
-    fn publish(&self, dup: u8, qos: u8, retain: u8, topic_name: String, message: String) -> Packet<VariableHeaderPublish, PublishPayload> {
+    fn publish(
+        &self,
+        dup: u8,
+        qos: u8,
+        retain: u8,
+        topic_name: String,
+        message: String,
+    ) -> Packet<VariableHeaderPublish, PublishPayload> {
         let header = Header {
             control_type: control_type::PUBLISH,
             control_flags: dup | qos | retain,
@@ -200,9 +256,7 @@ impl<T, P> ClientPacket for Packet<T, P> {
             packet_identifier: 10, // TODO: is this conformed to 3.1.1???
         };
 
-        let payload = PublishPayload {
-            message
-        };
+        let payload = PublishPayload { message };
         // building the struct packet
         let mut packet = Packet {
             header,
@@ -211,20 +265,28 @@ impl<T, P> ClientPacket for Packet<T, P> {
             has_payload: true,
             payload,
         };
-        let remaining_length = (packet.variable_header.value().len() + packet.payload.value().len()) as u32;
+        let remaining_length =
+            (packet.variable_header.value().len() + packet.payload.value().len()) as u32;
         packet.header.set_remaining_length(remaining_length);
         packet
     }
 }
 
 pub trait ServerPacket {
-    fn connack(&self, connect_ack_flags: u8, connect_return: u8 ) -> Packet<VariableHeaderConnack, Payload>;
+    fn connack(
+        &self,
+        connect_ack_flags: u8,
+        connect_return: u8,
+    ) -> Packet<VariableHeaderConnack, Payload>;
     fn pingresp(&self) -> Packet<VariableHeader, Payload>;
 }
 
 impl<T, P> ServerPacket for Packet<T, P> {
-
-    fn connack(&self, connect_ack_flags: u8, connect_return: u8) -> Packet<VariableHeaderConnack, Payload> {
+    fn connack(
+        &self,
+        connect_ack_flags: u8,
+        connect_return: u8,
+    ) -> Packet<VariableHeaderConnack, Payload> {
         let variable_header: VariableHeaderConnack = VariableHeaderConnack {
             acknoledge_flags: connect_ack_flags,
             return_code: connect_return,
@@ -262,7 +324,7 @@ impl<T, P> ServerPacket for Packet<T, P> {
             remaining_length_0: vec![0],
         };
         // building the struct packet
-         Packet {
+        Packet {
             header,
             has_variable_header: false,
             variable_header: VariableHeader::default(),
@@ -272,24 +334,31 @@ impl<T, P> ServerPacket for Packet<T, P> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     mod packets {
-        use crate::mqtt_packet_service::variable_header_packet::{connect_ack_flags, connect_return};
+        use crate::mqtt_packet_service::variable_header_packet::{
+            connect_ack_flags, connect_return,
+        };
 
         use super::*;
         #[test]
         fn test_unvalue_variableheader_payload() {
             let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
             let client_identifier = String::from("testId");
-            let connect_stub: Vec<u8> = connect_head_stub.iter().copied().chain(
-                (client_identifier.len() as u16).to_be_bytes().iter().copied().chain(
-                    client_identifier.as_bytes().iter().copied()
+            let connect_stub: Vec<u8> = connect_head_stub
+                .iter()
+                .copied()
+                .chain(
+                    (client_identifier.len() as u16)
+                        .to_be_bytes()
+                        .iter()
+                        .copied()
+                        .chain(client_identifier.as_bytes().iter().copied()),
                 )
-            ).collect();
+                .collect();
             let packet = Packet::<VariableHeader, Payload>::new();
             let packet = packet.connect(client_identifier);
             let value = packet.value();
@@ -303,11 +372,17 @@ mod tests {
         fn check_connect_packet() {
             let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
             let client_identifier = String::from("testId");
-            let connect_stub: Vec<u8> = connect_head_stub.iter().copied().chain(
-                (client_identifier.len() as u16).to_be_bytes().iter().copied().chain(
-                    client_identifier.as_bytes().iter().copied()
+            let connect_stub: Vec<u8> = connect_head_stub
+                .iter()
+                .copied()
+                .chain(
+                    (client_identifier.len() as u16)
+                        .to_be_bytes()
+                        .iter()
+                        .copied()
+                        .chain(client_identifier.as_bytes().iter().copied()),
                 )
-            ).collect();
+                .collect();
             let packet = Packet::<VariableHeader, Payload>::new();
             let packet = packet.connect(client_identifier);
             let value = packet.value();
@@ -323,12 +398,15 @@ mod tests {
             let mut variable_header = Vec::with_capacity(2);
             variable_header.push(connect_ack_flags::SESSION_PRESENT);
             variable_header.push(connect_return::ACCEPTED);
-            let connack_head_stub:Vec<u8> = header.iter().copied().chain(
-                variable_header.iter().copied()
-            ).collect();
-           
+            let connack_head_stub: Vec<u8> = header
+                .iter()
+                .copied()
+                .chain(variable_header.iter().copied())
+                .collect();
+
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.connack(connect_ack_flags::SESSION_PRESENT, connect_return::ACCEPTED);
+            let packet =
+                packet.connack(connect_ack_flags::SESSION_PRESENT, connect_return::ACCEPTED);
             let value = packet.value();
             // println!("value connack: {:?}", value);
             // println!("connack stub: {:?}", connack_head_stub);
@@ -367,23 +445,36 @@ mod tests {
             let dup = control_flags::DUP;
             let qos = control_flags::QOS0;
             let retain = control_flags::RETAIN;
-            let header = vec![(control_type::PUBLISH + ((dup | qos | retain) as u8)) as u8, 24]; // length of 24 for this example
+            let header = vec![
+                (control_type::PUBLISH + ((dup | qos | retain) as u8)) as u8,
+                24,
+            ]; // length of 24 for this example
             let topic_name = String::from("testTopic");
             let topic_name_vec = "testTopic".as_bytes().to_vec();
-            let packet_identifier:Vec<u8> = vec![0, 10];
+            let packet_identifier: Vec<u8> = vec![0, 10];
             let payload = String::from("testPayload");
 
-            let publish_stub: Vec<u8> = header.iter().copied().chain(
-                (topic_name_vec.len() as u16).to_be_bytes().iter().copied().chain(
-                    topic_name_vec.iter().copied().chain(
-                        packet_identifier.iter().copied().chain(
-                            (payload.len() as u16).to_be_bytes().iter().copied().chain(
-                                payload.as_bytes().iter().copied()
-                            )
-                        )
-                    )
+            let publish_stub: Vec<u8> = header
+                .iter()
+                .copied()
+                .chain(
+                    (topic_name_vec.len() as u16)
+                        .to_be_bytes()
+                        .iter()
+                        .copied()
+                        .chain(
+                            topic_name_vec.iter().copied().chain(
+                                packet_identifier.iter().copied().chain(
+                                    (payload.len() as u16)
+                                        .to_be_bytes()
+                                        .iter()
+                                        .copied()
+                                        .chain(payload.as_bytes().iter().copied()),
+                                ),
+                            ),
+                        ),
                 )
-            ).collect();
+                .collect();
             let packet = Packet::<VariableHeader, Payload>::new();
             let packet = packet.publish(dup, qos, retain, topic_name, payload);
             let value = packet.value();
