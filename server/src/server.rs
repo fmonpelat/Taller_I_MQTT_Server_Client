@@ -19,6 +19,9 @@ impl Server {
       server_address,
       server_port,
 	    logger: Arc::new(Logger::new(file_source)),
+      //TODO HASH PEER/ TX
+      //TODO HASH CLIENT/CHANNEL TUPLE
+      //TODO HASH TOPICS
     }
   }
 
@@ -36,11 +39,15 @@ impl Server {
               match Server::handle_packet(packet_identifier, & mut stream, &logger) {
                 Ok(_) => {
                   logger.debug(format!("Connection with {} closed", packet_identifier.unwrap()));
+                  // TODO let remaining_len = Packet::<VariableHeader, Payload>::get_packet_length(&buff[1..buff.len()].to_vec());
+                  // TODO buff=buff[(remaining_len+1)..buff.len()]
+                  // todo check buff
                 },
                 Err(_) => {
                   logger.debug("Error process stream".to_string());
                 },
             }
+            //else borrar buf, loopear de nuevo buff=vector vacio
             }
             thread::sleep(time::Duration::from_millis(2000));            
           }
@@ -173,11 +180,19 @@ impl Server {
 
   fn handle_packet( packet_id: Option<u8>, stream: &mut TcpStream, logger: &Arc<Logger>) -> Result<()>{
     let found_id = Server::packet_identifier(packet_id.unwrap());
+    //TODO SEE IF CLIENT/PEER IS CONNECTED --> CHECK HASH
+    // CHECK CONTROL TYPE IS A CONNECT BEFORE MATCH
     match found_id {
       control_type::CONNECT => { 
+        //TODO CHECK VALID CLIENT
         println!("Connect packet received \n");
         logger.debug(format!("Peer mqtt connected: {}",stream.peer_addr()?));
-        if let Err(e) = stream.write_all(b"32") {
+        //TODO ADD PEER ID AND TX TO HASH , 
+        //let packet = Packet::<VariableHeader, Payload>::new();
+        //let packet =
+        //    packet.connack(connect_ack_flags::SESSION_PRESENT, connect_return::ACCEPTED);
+        //PACKET.VALUE() , TO_BYTE IS REQUIRE
+        if let Err(e) = stream.write_all(b"32") { 
           logger.debug("Client disconnect".to_string());
           return Err(e) // Send client id when write_all fails
         }
