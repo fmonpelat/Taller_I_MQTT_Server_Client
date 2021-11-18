@@ -4,6 +4,7 @@ use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::{Arc};
 use std::{thread};
 use crate::logger::{Logger, Logging};
+use mqtt_packet::mqtt_packet_service::header_packet::{control_type};
 
 pub struct Server {
 	server_address: String, 
@@ -29,23 +30,17 @@ impl Server {
         Ok(_size) => {
           println!("{:?}", buff);
           if _size > 0 {
-            match buff[0] {
-                0x10 => {  // TODO: use mqtt control mod packet type
-                    println!("Connect packet received \n");
-                    logger.info(format!("Peer mqtt connected: {}",stream.peer_addr()?));
-                    if let Err(e) = stream.write_all(b"32") { // TODO: use mqtt control mod packet type
-                        println!("Client disconnect");
-                        return Err(e) // Send client id when write_all fails
-                    }
+            let packet_identifier = buff[..1].to_vec().pop();
+            if Server::is_mqtt_packet( packet_identifier ) {
+              logger.debug(format!("Found a MQTT packet: {}",packet_identifier.unwrap()));
+              match Server::handle_packet(packet_identifier, & mut stream, &logger) {
+                Ok(_) => {
+                  logger.debug(format!("Connection with {} closed", packet_identifier.unwrap()));
                 },
-                0x30 => {
-                    println!("Publish packet received \n");
-                    logger.info(format!("Peer mqtt publish: {}",stream.peer_addr()?));
+                Err(_) => {
+                  logger.debug("Error process stream".to_string());
                 },
-                _ => {
-                    println!("Unknown command received! {:?}\n", buff);
-                    logger.info(format!("Not understood this packet: {:?}\n", buff));
-                }
+            }
             }
             thread::sleep(time::Duration::from_millis(2000));            
           }
@@ -102,5 +97,88 @@ impl Server {
     self.logger.info("Server terminated.".to_string()); //ver porque no se escribe esta linea no se escribe en el log
     Ok(())
 
+  }
+
+  fn is_mqtt_packet( packet_id:Option<u8> ) -> bool{
+    let mut is_founded = false;
+    let id = packet_id.unwrap();
+    //let found_id = Server::packet_identifier(id);
+    if Server::packet_identifier(id) == id {
+      is_founded = true 
+    }
+    is_founded 
+  }
+
+  fn packet_identifier( packet_identifier:u8) -> u8 {
+    
+    match packet_identifier {
+      control_type::CONNECT =>{
+        return control_type::CONNECT   
+      },
+      control_type::CONNACK =>{
+        return control_type::CONNACK  
+      },
+      control_type::PUBLISH =>{
+        return control_type::PUBLISH    
+      },
+      control_type::PUBACK =>{
+        return control_type::PUBACK   
+      },
+      control_type::PUBREC =>{
+        return control_type::PUBREC   
+      },
+      control_type::PUBREL =>{
+        return control_type::PUBREL    
+      },
+      control_type::PUBCOMP =>{
+        return control_type::PUBCOMP    
+      },
+      control_type::SUBSCRIBE =>{
+        return control_type::SUBSCRIBE    
+      },
+      control_type::SUBACK =>{
+        return control_type::SUBACK    
+      },
+      control_type::UNSUBSCRIBE =>{
+        return control_type::UNSUBSCRIBE  
+      },
+      control_type::UNSUBACK =>{
+        return control_type::UNSUBACK   
+      },
+      control_type::PINGREQ =>{
+        return control_type::PINGREQ   
+      },
+      control_type::PINGRESP =>{
+        return control_type::PINGRESP   
+      },
+      control_type::DISCONNECT =>{
+        return control_type::DISCONNECT   
+      },
+      _ => {
+        return 255 //return a invalid id
+      }
+    }
+  }
+
+  fn handle_packet( packet_id: Option<u8>, stream: &mut TcpStream, logger: &Arc<Logger>) -> Result<()>{
+    let found_id = Server::packet_identifier(packet_id.unwrap());
+    match found_id {
+      control_type::CONNECT => { 
+        println!("Connect packet received \n");
+        logger.debug(format!("Peer mqtt connected: {}",stream.peer_addr()?));
+        if let Err(e) = stream.write_all(b"32") {
+          logger.debug(format!("Client disconnect"));
+          return Err(e) // Send client id when write_all fails
+        }
+      },
+      control_type::PUBLISH  => {
+          logger.debug(format!("Publish packet received"));
+          logger.debug(format!("Peer mqtt publish: {:?}",stream.peer_addr()?));
+      },
+      _ => {
+        logger.debug(format!("Id not match with any control packet"));
+      }
+    }
+    Ok(())
   }
 }

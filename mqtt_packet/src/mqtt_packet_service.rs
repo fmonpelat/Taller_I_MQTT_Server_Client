@@ -1,5 +1,5 @@
-mod header_packet;
-use header_packet::{control_flags, control_type, Header, PacketHeader};
+pub mod header_packet;
+pub use header_packet::{control_flags, control_type, Header, PacketHeader};
 mod variable_header_packet;
 use variable_header_packet::{
     connect_flags, PacketVariableHeader, PacketVariableHeaderConnack, PacketVariableHeaderPublish,
