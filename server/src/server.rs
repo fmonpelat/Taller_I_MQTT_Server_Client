@@ -63,7 +63,7 @@ impl Server {
 }
 
   pub fn connect(&self) -> Result<()> {
-	self.logger.debug("ready to binding".to_string());
+	  self.logger.debug("ready to binding".to_string());
     self.logger.info(format!("server address: {:?}",self.server_address.to_owned() + ":" + &self.server_port));
     let listener = TcpListener::bind(self.server_address.to_owned() + ":" + &self.server_port)?;
     // accept connections and process them, spawning a new thread for each one
