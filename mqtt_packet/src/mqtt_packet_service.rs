@@ -158,6 +158,21 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
 }
 // general implementation for all packets
 
+pub trait Utils {
+    fn get_packet_length(vec: & Vec<u8>) -> usize;
+}
+
+impl<T, P> Utils for Packet<T, P> {
+    fn get_packet_length(vec: &Vec<u8>) -> usize {
+        let mut _readed: usize = 0;
+        let remaining_len = Header::get_remaining_length(vec.to_vec(), &mut _readed);
+        // println!("remaining_len: {:?} readed: {:?}", remaining_len, _readed);
+        let remaining = Header::decode_remaining_length(&remaining_len);
+        // println!("decoded remaining: {}", remaining);
+        remaining as usize
+    }
+}
+
 pub trait ClientPacket {
     fn connect(&self, client_identifier: String) -> Packet<VariableHeader, Payload>;
     fn disconnect(&self) -> Packet<VariableHeader, Payload>;
@@ -344,6 +359,17 @@ mod tests {
         };
 
         use super::*;
+        #[test]
+        fn test_packet_remaining_len() {
+            // let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
+            let client_identifier = String::from("testId");
+            let packet = Packet::<VariableHeader, Payload>::new();
+            let packet = packet.connect(client_identifier);
+            let value = packet.value();
+            let remaining_len = Packet::<VariableHeader, Payload>::get_packet_length(&value[1..value.len()].to_vec());
+            assert_eq!(remaining_len, 18);
+        }
+
         #[test]
         fn test_unvalue_variableheader_payload() {
             let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];

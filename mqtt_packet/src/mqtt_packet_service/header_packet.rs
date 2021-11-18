@@ -37,11 +37,12 @@ pub struct Header {
 pub trait PacketHeader {
     fn get_cmd_type(&self) -> u8;
     fn get_cmd_flags(&self) -> u8;
-    fn decode_remaining_length(&self) -> u32;
-    fn encode_remaining_length(&self, x: u32) -> Vec<u8>;
+    fn decode_remaining_length(remaining_length: &Vec<u8>) -> u32;
+    fn encode_remaining_length(x: u32) -> Vec<u8>;
     fn set_remaining_length(&mut self, x: u32);
     fn value(&self) -> Vec<u8>;
     fn unvalue(x: Vec<u8>, readed: &mut usize) -> Header;
+    fn get_remaining_length(x: Vec<u8>, readed: &mut usize) -> Vec<u8>;
 }
 
 impl PacketHeader for Header {
@@ -54,12 +55,9 @@ impl PacketHeader for Header {
         header_vec
     }
 
-    fn unvalue(x: Vec<u8>, readed: &mut usize) -> Header {
-        *readed = 0;
-        let control_type = x[0] & 0xF0;
-        let control_flags = x[0] & 0x0F;
+    fn get_remaining_length(x: Vec<u8>, readed: &mut usize) -> Vec<u8> {
         let mut remaining_length_0: Vec<u8> = Vec::with_capacity(4);
-        let mut i = 1;
+        let mut i = 0;
         let mut stopping_bit = x[i] & 0x80;
         remaining_length_0.push(x[i]);
         while stopping_bit != 0 {
@@ -67,7 +65,16 @@ impl PacketHeader for Header {
             remaining_length_0.push(x[i]);
             stopping_bit = x[i] & 0x80;
         }
-        *readed = (i + 1) as usize;
+        *readed = i + 1;
+        remaining_length_0
+    }
+
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> Header {
+        *readed = 0;
+        let control_type = x[0] & 0xF0;
+        let control_flags = x[0] & 0x0F;
+        let remaining_length_0 = Header::get_remaining_length(x[1..x.len()].to_vec(), readed);
+        *readed += 1;
         Header {
             control_type,
             control_flags,
@@ -83,7 +90,7 @@ impl PacketHeader for Header {
         self.control_flags
     }
 
-    fn decode_remaining_length(&self) -> u32 {
+    fn decode_remaining_length(remaining_length: &Vec<u8>) -> u32 {
         // multiplier = 1
         // 300 value = 0
         // 301 do
@@ -93,7 +100,8 @@ impl PacketHeader for Header {
         // 305 if (multiplier > 128*128*128)
         // 306 throw Error(Malformed Remaining Length)
         // 307 while ((encodedByte AND 128) != 0)
-        let mut array = self.remaining_length_0.clone();
+        // let mut array = self.remaining_length_0.clone();
+        let mut array = remaining_length.clone();
         array.reverse();
         let mut multiplier: u32 = 1;
         let mut value = 0;
@@ -113,7 +121,7 @@ impl PacketHeader for Header {
         value as u32
     }
 
-    fn encode_remaining_length(&self, x: u32) -> Vec<u8> {
+    fn encode_remaining_length(x: u32) -> Vec<u8> {
         // do
         // 284 encodedByte = X MOD 128
         // 285 X = X DIV 128
@@ -142,7 +150,7 @@ impl PacketHeader for Header {
     }
 
     fn set_remaining_length(&mut self, x: u32) {
-        let vector = self.encode_remaining_length(x);
+        let vector = Header::encode_remaining_length(x);
         self.remaining_length_0 = vector;
     }
 }
@@ -151,6 +159,26 @@ impl PacketHeader for Header {
 mod tests {
     use super::*;
     use std::panic;
+
+    #[test]
+    fn check_get_remaining_length() {
+        let mut header = Header::default();
+        let control_type = control_type::CONNECT; // 0x10
+        let control_flags = control_flags::RESERVED; // 0x00
+        header.control_type = control_type;
+        header.control_flags = control_flags;
+
+        // one byte remaining length
+        header.set_remaining_length(300);
+
+        let mut value: Vec<u8> = header.value();
+        value.extend(vec![0x00, 0x00, 0x00, 0x0].iter().cloned());
+
+        let mut readed = 0;
+        let remaining_length_0 = value[1..].to_vec();
+        let rl_ec = Header::get_remaining_length(remaining_length_0, &mut readed);
+        assert!(rl_ec.eq(&header.remaining_length_0));
+    }
 
     #[test]
     fn check_header_unvalue() {
@@ -199,16 +227,15 @@ mod tests {
 
     #[test]
     fn check_encode_remaining_len() {
-        let header = Header::default();
-        let vector = header.encode_remaining_length(400);
+        let vector = Header::encode_remaining_length(400);
         assert!(vector.len() == 2);
         assert!(vector[0] == 144 && vector[1] == 3);
 
-        let vector = header.encode_remaining_length(16384);
+        let vector = Header::encode_remaining_length(16384);
         assert!(vector.len() == 3);
         assert!(vector[0] == 128 && vector[1] == 128 && vector[2] == 1);
 
-        let vector = header.encode_remaining_length(2097152);
+        let vector = Header::encode_remaining_length(2097152);
         assert!(vector.len() == 4);
         assert!(vector[0] == 128 && vector[1] == 128 && vector[2] == 128 && vector[3] == 1);
     }
@@ -219,13 +246,13 @@ mod tests {
         header.set_remaining_length(100);
         assert!(header.remaining_length_0.len() == 1);
 
-        let value = header.decode_remaining_length();
+        let value = Header::decode_remaining_length(&header.remaining_length_0);
         assert!(value == 100);
 
         header.set_remaining_length(2097152);
         assert!(header.remaining_length_0.len() == 4);
 
-        let value = header.decode_remaining_length();
+        let value = Header::decode_remaining_length(&header.remaining_length_0);
         assert!(value == 2097152);
     }
 
@@ -234,7 +261,7 @@ mod tests {
         panic::set_hook(Box::new(|_info| {}));
         let mut header = Header::default();
         header.set_remaining_length(268435456);
-        let result = panic::catch_unwind(move || header.decode_remaining_length());
+        let result = panic::catch_unwind(move || Header::decode_remaining_length(&header.remaining_length_0));
         assert!(result.is_err());
     }
 
@@ -242,22 +269,22 @@ mod tests {
     fn header_remaining_len() {
         let mut header = Header::default();
         header.set_remaining_length(0); // 0 bytes length
-        assert_eq!(header.decode_remaining_length(), 0);
+        assert_eq!(Header::decode_remaining_length(&header.remaining_length_0), 0);
 
         header.set_remaining_length(127); // 1 bytes length
-        assert_eq!(header.decode_remaining_length(), 127);
+        assert_eq!(Header::decode_remaining_length(&header.remaining_length_0), 127);
 
         header.set_remaining_length(128); // 2 bytes length
-        assert_eq!(header.decode_remaining_length(), 128);
+        assert_eq!(Header::decode_remaining_length(&header.remaining_length_0), 128);
 
         header.set_remaining_length(129); // 2 bytes length
-        assert_eq!(header.decode_remaining_length(), 129);
+        assert_eq!(Header::decode_remaining_length(&header.remaining_length_0), 129);
 
         header.set_remaining_length(128 * 128); // 3 bytes length
-        assert_eq!(header.decode_remaining_length(), 128 * 128);
+        assert_eq!(Header::decode_remaining_length(&header.remaining_length_0), 128 * 128);
 
         header.set_remaining_length(128 * 128 * 128); // 4 bytes length
-        assert_eq!(header.decode_remaining_length(), 128 * 128 * 128);
+        assert_eq!(Header::decode_remaining_length(&header.remaining_length_0), 128 * 128 * 128);
     }
 
     #[test]
