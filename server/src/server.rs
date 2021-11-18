@@ -113,49 +113,49 @@ impl Server {
     
     match packet_identifier {
       control_type::CONNECT =>{
-        return control_type::CONNECT   
+        control_type::CONNECT   
       },
       control_type::CONNACK =>{
-        return control_type::CONNACK  
+        control_type::CONNACK  
       },
       control_type::PUBLISH =>{
-        return control_type::PUBLISH    
+        control_type::PUBLISH    
       },
       control_type::PUBACK =>{
-        return control_type::PUBACK   
+        control_type::PUBACK   
       },
       control_type::PUBREC =>{
-        return control_type::PUBREC   
+        control_type::PUBREC   
       },
       control_type::PUBREL =>{
-        return control_type::PUBREL    
+        control_type::PUBREL    
       },
       control_type::PUBCOMP =>{
-        return control_type::PUBCOMP    
+        control_type::PUBCOMP    
       },
       control_type::SUBSCRIBE =>{
-        return control_type::SUBSCRIBE    
+        control_type::SUBSCRIBE    
       },
       control_type::SUBACK =>{
-        return control_type::SUBACK    
+        control_type::SUBACK    
       },
       control_type::UNSUBSCRIBE =>{
-        return control_type::UNSUBSCRIBE  
+        control_type::UNSUBSCRIBE  
       },
       control_type::UNSUBACK =>{
-        return control_type::UNSUBACK   
+        control_type::UNSUBACK   
       },
       control_type::PINGREQ =>{
-        return control_type::PINGREQ   
+        control_type::PINGREQ   
       },
       control_type::PINGRESP =>{
-        return control_type::PINGRESP   
+        control_type::PINGRESP   
       },
       control_type::DISCONNECT =>{
-        return control_type::DISCONNECT   
+        control_type::DISCONNECT   
       },
       _ => {
-        return 255 //return a invalid id
+        255 //return a invalid id
       }
     }
   }
@@ -167,16 +167,16 @@ impl Server {
         println!("Connect packet received \n");
         logger.debug(format!("Peer mqtt connected: {}",stream.peer_addr()?));
         if let Err(e) = stream.write_all(b"32") {
-          logger.debug(format!("Client disconnect"));
+          logger.debug("Client disconnect".to_string());
           return Err(e) // Send client id when write_all fails
         }
       },
       control_type::PUBLISH  => {
-          logger.debug(format!("Publish packet received"));
+          logger.debug("Publish packet received".to_string());
           logger.debug(format!("Peer mqtt publish: {:?}",stream.peer_addr()?));
       },
       _ => {
-        logger.debug(format!("Id not match with any control packet"));
+        logger.debug("Id not match with any control packet".to_string());
       }
     }
     Ok(())
