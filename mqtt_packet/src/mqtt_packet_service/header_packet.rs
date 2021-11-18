@@ -227,7 +227,6 @@ mod tests {
 
     #[test]
     fn check_encode_remaining_len() {
-        let header = Header::default();
         let vector = Header::encode_remaining_length(400);
         assert!(vector.len() == 2);
         assert!(vector[0] == 144 && vector[1] == 3);
