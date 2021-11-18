@@ -30,7 +30,7 @@ impl Server {
         Ok(_size) => {
           println!("{:?}", buff);
           if _size > 0 {
-            let packet_identifier = buff[..1].to_vec().pop();
+            let packet_identifier = buff[..1].to_vec().pop(); //FM: porque no directamente haces buff[0]? eso te daria ya el u8 y no option...
             if Server::is_mqtt_packet( packet_identifier ) {
               logger.debug(format!("Found a MQTT packet: {}",packet_identifier.unwrap()));
               match Server::handle_packet(packet_identifier, & mut stream, &logger) {
@@ -100,13 +100,24 @@ impl Server {
   }
 
   fn is_mqtt_packet( packet_id:Option<u8> ) -> bool{
-    let mut is_founded = false;
+    let mut is_founded = false;  // 
     let id = packet_id.unwrap();
     //let found_id = Server::packet_identifier(id);
-    if Server::packet_identifier(id) == id {
+    if Server::packet_identifier(id) == id { // FM: que pasa si llega un 255 como packet identifier? lo toma como valido....
       is_founded = true 
     }
     is_founded 
+
+    // FM: podrias haber buscado en un vector de packet identifiers validos capaz era mas facil que hacer match porque no son tantos
+    // algo como:
+    // let packet_identifiers = [
+    //   control_type::CONNECT,
+    //   control_type::CONNACK,
+    //   control_type::PUBLISH,
+    //   //...
+    // ];
+    // let found_id = packet_identifiers.iter().find(|&x| x == &id);
+    // found_id.is_some()
   }
 
   fn packet_identifier( packet_identifier:u8) -> u8 {
