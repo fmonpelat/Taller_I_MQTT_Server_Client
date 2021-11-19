@@ -1,12 +1,12 @@
-mod header_packet;
-use header_packet::{control_flags, control_type, Header, PacketHeader};
-mod variable_header_packet;
-use variable_header_packet::{
+pub mod header_packet;
+pub use header_packet::{control_flags, control_type, Header, PacketHeader};
+pub mod variable_header_packet; ///
+pub use variable_header_packet::{
     connect_flags, PacketVariableHeader, PacketVariableHeaderConnack, PacketVariableHeaderPublish,
     VariableHeader, VariableHeaderConnack, VariableHeaderPublish,
 };
-mod payload_packet;
-use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload};
+pub mod payload_packet; ///
+pub use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload};
 
 #[derive(Debug, Default)]
 pub struct Packet<T, P> {
@@ -51,7 +51,7 @@ impl Packet<VariableHeader, Payload> {
         packet
     }
     #[allow(dead_code)]
-    fn value(&self) -> Vec<u8> {
+    pub fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
         let variable_header = if self.has_variable_header {
             self.variable_header.value()

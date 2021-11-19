@@ -1,7 +1,7 @@
 mod client;
 use std::io::stdin;
 use crate::client::Client;
-use mqtt_packet::mqtt_packet_service::{ClientPacket,Packet};
+use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket};
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader};
 use mqtt_packet::mqtt_packet_service::payload_packet::{Payload};
 
@@ -14,23 +14,47 @@ fn main() {
     
     client.publish(String::from("test"),String::from("test"));
 
-    let packet_client: Packet<VariableHeader, Payload>  = ClientPacket::connect(String::from("id_client"));
-
-    show_options();
     loop {
         // read from stdin and send to server
         //let mut input = String::new();
-        let input: String = input_option().to_string();
-        match input.as_ref() {
-            "1" => {client.connect_m(packet_client)},
-            "2" => {client.publish(String::from("topic"),String::from("payload"))},
-            
-            "4" => {
-                // client.disconnect();
+        
+
+        // si el usuario se conecta -->connect
+        // si quiere  publish  --> checquear si esta connectado
+        // luego hace match
+
+        let packet: Packet::<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();         
+        let user_input = user_input();
+
+        match user_input[0].to_lowercase().as_ref() {
+            "connect" => {
+                client.connect();
+                let packet = packet.connect(String::from(&user_input[1]));
+                client.send(packet.value());
+                println!("send connect");
+            },
+            "publish" => {
+                // send publish
+                //let packet = packet.publish();
+                if client.is_connect() {
+                    client.send(packet.value());
+                    println!("send publish");
+                }
+            },
+            "pingreq" => {
+                // send publish
+                if client.is_connect(){
+                    let packet = packet.pingresp();
+                
+                    client.send(packet.value());
+                    println!("send pingreq");
+                }
+            },
+            "disconnect" =>{ //client.disconnect();
                 break;
             },
             _ => {
-                println!("Message not understood: {:?}",input);
+                println!("Message not understood: {:?}",user_input);
                 // print to stdout not understand
             }
         }
@@ -40,21 +64,20 @@ fn main() {
     // println!("Client terminated.");
 }
 
-/// Muestra las opciones a ejecutar por el cliente.
-fn show_options() {
-    println!("\t Options:");
-    println!("\t\t 1. ---> Connect.");
-    println!("\t\t 2. ---> Publish.");
-    println!("\t\t 3. ---> Suscriber.");
-    println!("\t\t 4. ---> Exit.");
+/// Opciones a ejecutar por el cliente.
+
+pub fn user_input() -> Vec<String>{
+    println!("Enter option...");
+    let mut a_str = String::new();
+
+    stdin().read_line(&mut a_str).expect("read error");
+    let input_stdin:Vec<String> = a_str.split_whitespace().map(|x| x.parse::<String>().expect("parse error"))
+    .collect::<Vec<String>>();
+    
+    println!("{:?}",input_stdin);
+    input_stdin
 }
 
-pub fn input_option()-> String {
-    println!("Enter an option...");
-    let mut input = String::new();
-    stdin().read_line(&mut input).ok().expect("Failed to read line");
-    input
-}
 
 #[cfg(test)]
 mod tests {

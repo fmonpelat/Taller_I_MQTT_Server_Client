@@ -7,7 +7,7 @@ use std::thread;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
 
-use mqtt_packet::mqtt_packet_service::{ClientPacket,Packet};
+use mqtt_packet::mqtt_packet_service::{Packet};
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader};
 use mqtt_packet::mqtt_packet_service::payload_packet::{Payload};
 
@@ -17,6 +17,7 @@ pub struct Client {
   server_port: String,
   tx: Arc<Mutex<Sender<Vec<u8>>>>,
   rx: Arc<Mutex<Receiver<Vec<u8>>>>,
+  is_connect: bool,
 }
 
 impl Client {
@@ -29,13 +30,13 @@ impl Client {
       server_port,
       tx,
       rx,
+      is_connect: false,
     }
   }
 
-  
 
   pub fn publish(&self, _topic: String, _payload: String) {
-    let Self { server_host: _, server_port: _, tx, rx: _ } = self;
+    let Self { server_host: _, server_port: _, tx, rx: _ , is_connect: _} = self;
     let msg = vec![0x30];
 
     let packet = Packet::<VariableHeader, Payload>::new();
@@ -55,7 +56,24 @@ impl Client {
     }
   }
 
-  
+  pub fn send(&self, value:Vec<u8>){
+    
+    if validate_msg(value.clone()) {
+      self.tx.lock().unwrap()
+      .send(value).unwrap();
+    } else {
+      println!("can't send message: {:?}", value);
+    }
+
+    fn validate_msg(msg: Vec<u8>) -> bool {
+      let byte = msg[0];
+      byte & 0xF == 0x10
+    }
+  }
+
+  pub fn is_connect(&self) -> bool{
+    self.is_connect
+  }
 
   pub fn connect(&self) {
     // let Self {
@@ -76,6 +94,7 @@ impl Client {
         let _stream = Arc::clone(&stream_arc);
 
         let rx = self.rx.clone();
+        let mut is_connect = self.is_connect.clone();
         let _handle_write = thread::Builder::new().name("Thread: write to stream".to_string())
         .spawn( move || 
           loop {
@@ -87,11 +106,12 @@ impl Client {
                     stream_arc.lock().unwrap().write_all(&msg).unwrap(); 
                     // Drop the `MutexGuard` to allow other threads to make use of rx
                     drop(guard);
-
+                    is_connect = true;
                     thread::sleep(Duration::from_millis(50));
                 },
                 Err(e) => {
                     println!("Thread client write got a error: {:?}", e);
+                    is_connect = false;
                     break;
                 }
             };
@@ -122,45 +142,6 @@ impl Client {
             thread::sleep(time::Duration::from_millis(60));
         });
         // let _res = handle_read.join();
-      },
-      Err(e) => {
-          println!("Failed to connect: {}", e);
-      }
-    };
-    
-  }
-
-  pub fn connect_m(&self, packet_client: Packet<VariableHeader, Payload> ) {
-  
-    match TcpStream::connect(self.server_host.to_string() + ":" + &self.server_port) {
-      Ok(mut stream) => {
-        println!("Successfully connected to server in port {}", self.server_port);
-
-        //stream.write_all(&(msg)).unwrap();
-        stream.write_all(packet_client).unwrap();
-        let stream_arc = Arc::new(Mutex::new(stream));
-        let _stream = Arc::clone(&stream_arc);
-
-        let rx = self.rx.clone();
-        let _handle_write = thread::Builder::new().name("Thread: write to stream".to_string())
-        .spawn( move || 
-          loop {
-            let guard = rx.lock().unwrap();
-            match guard.recv() {
-                Ok(packet_client) => {
-                    println!("Thread client write got a msg: {:?}", packet_client);
-                    // send message 
-                    stream_arc.lock().unwrap().write_all(&packet_client).unwrap(); 
-                    drop(guard);
-                    //thread::sleep(Duration::from_millis(50));
-                },
-                Err(e) => {
-                    println!("Thread client write got a error: {:?}", e);
-                    break;
-                }
-            };
-          }
-        );
       },
       Err(e) => {
           println!("Failed to connect: {}", e);
