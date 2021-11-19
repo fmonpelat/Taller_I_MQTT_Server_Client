@@ -1,5 +1,5 @@
 mod header_packet;
-use header_packet::{control_flags, control_type, Header, PacketHeader};
+use header_packet::{control_flags, control_type, control_type_vec, Header, PacketHeader};
 mod variable_header_packet;
 use variable_header_packet::{
     connect_flags, PacketVariableHeader, PacketVariableHeaderConnack, PacketVariableHeaderPublish,
@@ -263,9 +263,21 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
 
 pub trait Utils {
     fn get_packet_length(vec: &[u8]) -> usize;
+    fn is_mqtt_packet(vec: &[u8]) -> bool;
 }
 
 impl<T, P> Utils for Packet<T, P> {
+    fn is_mqtt_packet(vec: &[u8]) -> bool {
+        if vec.len() < 2 {
+            return false;
+        }
+        let header = vec[0];
+        let control_type = header & 0xF0;
+        if control_type == 0x00 {
+            return false;
+        }
+        control_type_vec::CONTROL_TYPE.contains(&control_type)
+    }
     fn get_packet_length(vec: &[u8]) -> usize {
         let mut _readed: usize = 0;
         let remaining_len = Header::get_remaining_length(vec.to_vec(), &mut _readed);
@@ -482,6 +494,25 @@ mod tests {
         };
 
         use super::*;
+        #[test]
+        fn check_is_mqtt_packet() {
+            let test1: Vec<u8> = vec![];
+            let test2: Vec<u8> = vec![0x00];
+            let test3: Vec<u8> = vec![0x10, 0x00, 0x00];
+            assert_eq!(
+                Packet::<VariableHeader, Payload>::is_mqtt_packet(&test1),
+                false
+            );
+            assert_eq!(
+                Packet::<VariableHeader, Payload>::is_mqtt_packet(&test2),
+                false
+            );
+            assert_eq!(
+                Packet::<VariableHeader, Payload>::is_mqtt_packet(&test3),
+                true
+            );
+        }
+
         #[test]
         fn check_packet_publishack() {
             let packet = Packet::new();

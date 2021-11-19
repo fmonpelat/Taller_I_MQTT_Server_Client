@@ -18,6 +18,13 @@ pub mod control_type {
 }
 
 #[allow(dead_code)]
+pub mod control_type_vec {
+    pub const CONTROL_TYPE: [u8; 15] = [
+        0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xA0, 0xB0, 0xC0, 0xD0, 0xE0, 0xF0,
+    ];
+}
+
+#[allow(dead_code)]
 pub mod control_flags {
     pub const RESERVED: u8 = 0x00;
     pub const RETAIN: u8 = 0x01;
