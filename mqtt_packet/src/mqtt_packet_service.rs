@@ -3,7 +3,7 @@ use header_packet::{control_flags, control_type, Header, PacketHeader};
 mod variable_header_packet;
 use variable_header_packet::{
     connect_flags, PacketVariableHeader, PacketVariableHeaderConnack, PacketVariableHeaderPublish,
-    VariableHeader, VariableHeaderConnack, VariableHeaderPublish, PacketVariableHeaderPublishAck
+    PacketVariableHeaderPublishAck, VariableHeader, VariableHeaderConnack, VariableHeaderPublish,
 };
 mod payload_packet;
 use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload};
@@ -130,7 +130,7 @@ impl Packet<VariableHeaderConnack, Payload> {
         }
         res
     }
-    
+
     pub fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderConnack, Payload> {
         let mut absolute_index: usize = 0;
         let mut readed: usize = 0;
@@ -160,16 +160,15 @@ impl Packet<VariableHeaderConnack, Payload> {
 }
 
 impl Packet<VariableHeaderPublishAck, Payload> {
+    #[allow(dead_code)]
     fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPublishAck, Payload> {
         let mut absolute_index: usize = 0;
         let mut readed: usize = 0;
         let header = Header::unvalue(x.clone(), &mut readed);
         absolute_index += readed;
 
-        let variable_header = VariableHeaderPublishAck::unvalue(
-            x[absolute_index..x.len()].to_vec(),
-            &mut readed,
-        );
+        let variable_header =
+            VariableHeaderPublishAck::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
         Packet::<VariableHeaderPublishAck, Payload> {
             header,
             has_variable_header: true,
@@ -192,7 +191,7 @@ impl Packet<VariableHeaderPublishAck, Payload> {
             Vec::new()
         };
         // put payload len before payload content
-        if payload.len() > 0 {
+        if payload.is_empty() {
             let payload_len = payload.len() as u16;
             let mut vec: Vec<u8> = Vec::with_capacity(payload.len() + 1);
             vec.push((payload_len >> 8) as u8);
@@ -202,16 +201,17 @@ impl Packet<VariableHeaderPublishAck, Payload> {
             }
             payload = vec;
         }
-    
+
         let vec: Vec<u8> = self
             .header
             .value()
             .iter()
             .cloned()
             .chain(
-                variable_header.iter().cloned().chain(
-                    payload.iter().cloned(),
-                ),
+                variable_header
+                    .iter()
+                    .cloned()
+                    .chain(payload.iter().cloned()),
             )
             .collect();
 
@@ -262,11 +262,11 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
 // general implementation for all packets
 
 pub trait Utils {
-    fn get_packet_length(vec: & Vec<u8>) -> usize;
+    fn get_packet_length(vec: &[u8]) -> usize;
 }
 
 impl<T, P> Utils for Packet<T, P> {
-    fn get_packet_length(vec: &Vec<u8>) -> usize {
+    fn get_packet_length(vec: &[u8]) -> usize {
         let mut _readed: usize = 0;
         let remaining_len = Header::get_remaining_length(vec.to_vec(), &mut _readed);
         // println!("remaining_len: {:?} readed: {:?}", remaining_len, _readed);
@@ -364,18 +364,15 @@ impl<T, P> ClientPacket for Packet<T, P> {
             control_flags: control_flags::RESERVED,
             remaining_length_0: vec![2],
         };
-        let variable_header = VariableHeaderPublishAck {
-            packet_identifier,
-        };
+        let variable_header = VariableHeaderPublishAck { packet_identifier };
         // building the struct packet
-        let packet= Packet::<VariableHeaderPublishAck,Payload> {
+        Packet::<VariableHeaderPublishAck, Payload> {
             header,
             has_variable_header: true,
             variable_header,
             has_payload: false,
             payload: Payload::default(),
-        };
-        packet
+        }
     }
 
     fn publish(
@@ -494,12 +491,18 @@ mod tests {
             assert_eq!(packet.header.remaining_length_0, vec![2]);
             assert_eq!(packet.variable_header.packet_identifier, 1);
             let value = packet.value();
-            assert_eq!(vec![64, 2, 0, 1],value);
+            assert_eq!(vec![64, 2, 0, 1], value);
             let unvalue = Packet::<VariableHeaderPublishAck, Payload>::unvalue(value);
-            assert_eq!(packet.header.remaining_length_0, unvalue.header.remaining_length_0);
+            assert_eq!(
+                packet.header.remaining_length_0,
+                unvalue.header.remaining_length_0
+            );
             assert_eq!(packet.header.control_type, unvalue.header.control_type);
             assert_eq!(packet.header.control_flags, unvalue.header.control_flags);
-            assert_eq!(packet.variable_header.packet_identifier, unvalue.variable_header.packet_identifier);
+            assert_eq!(
+                packet.variable_header.packet_identifier,
+                unvalue.variable_header.packet_identifier
+            );
         }
 
         #[test]
@@ -509,7 +512,9 @@ mod tests {
             let packet = Packet::<VariableHeader, Payload>::new();
             let packet = packet.connect(client_identifier);
             let value = packet.value();
-            let remaining_len = Packet::<VariableHeader, Payload>::get_packet_length(&value[1..value.len()].to_vec());
+            let remaining_len = Packet::<VariableHeader, Payload>::get_packet_length(
+                &value[1..value.len()].to_vec(),
+            );
             assert_eq!(remaining_len, 18);
         }
 
@@ -564,13 +569,21 @@ mod tests {
             // println!("unvalue {:?}", unvalued_packet);
             assert_eq!(unvalued_packet.value().len(), connect_stub.len());
             assert_eq!(unvalued_packet.header.control_type, control_type::CONNECT);
-            assert_eq!(unvalued_packet.header.control_flags, control_flags::RESERVED);
+            assert_eq!(
+                unvalued_packet.header.control_flags,
+                control_flags::RESERVED
+            );
             assert_eq!(unvalued_packet.header.remaining_length_0, vec![18]);
-            assert_eq!(unvalued_packet.variable_header.protocol_name, vec![0, 4, 77, 81, 84, 84]);
+            assert_eq!(
+                unvalued_packet.variable_header.protocol_name,
+                vec![0, 4, 77, 81, 84, 84]
+            );
             assert_eq!(unvalued_packet.variable_header.protocol_level, 4);
-            assert_eq!(unvalued_packet.variable_header.connect_flags, connect_flags::CLEAN_SESSION);
+            assert_eq!(
+                unvalued_packet.variable_header.connect_flags,
+                connect_flags::CLEAN_SESSION
+            );
             assert_eq!(unvalued_packet.variable_header.keep_alive, 0);
-            
         }
 
         #[test]
@@ -596,10 +609,19 @@ mod tests {
 
             let unvalued_packet = Packet::<VariableHeaderConnack, Payload>::unvalue(value);
             assert_eq!(unvalued_packet.header.control_type, control_type::CONNACK);
-            assert_eq!(unvalued_packet.header.control_flags, control_flags::RESERVED);
+            assert_eq!(
+                unvalued_packet.header.control_flags,
+                control_flags::RESERVED
+            );
             assert_eq!(unvalued_packet.header.remaining_length_0, vec![2]);
-            assert_eq!(unvalued_packet.variable_header.acknoledge_flags, connect_ack_flags::SESSION_PRESENT);
-            assert_eq!(unvalued_packet.variable_header.return_code, connect_return::ACCEPTED);
+            assert_eq!(
+                unvalued_packet.variable_header.acknoledge_flags,
+                connect_ack_flags::SESSION_PRESENT
+            );
+            assert_eq!(
+                unvalued_packet.variable_header.return_code,
+                connect_return::ACCEPTED
+            );
         }
 
         #[test]
@@ -616,8 +638,14 @@ mod tests {
 
             let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(value);
             // println!("unvalue {:?}", unvalued_packet);
-            assert_eq!(unvalued_packet.header.control_type, control_type::DISCONNECT);
-            assert_eq!(unvalued_packet.header.control_flags, control_flags::RESERVED);
+            assert_eq!(
+                unvalued_packet.header.control_type,
+                control_type::DISCONNECT
+            );
+            assert_eq!(
+                unvalued_packet.header.control_flags,
+                control_flags::RESERVED
+            );
             assert_eq!(unvalued_packet.header.remaining_length_0, vec![0]);
         }
 
@@ -671,12 +699,20 @@ mod tests {
                 )
                 .collect();
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.publish(dup, qos, retain, packet_identifier as u16, topic_name, payload);
+            let packet = packet.publish(
+                dup,
+                qos,
+                retain,
+                packet_identifier as u16,
+                topic_name,
+                payload,
+            );
             let value = packet.value();
             // println!("value publish: {:?}", value);
             // println!("publish stub: {:?}", publish_stub);
             assert!(value.len() == publish_stub.len());
             assert!(publish_stub.eq(&value));
         }
+        
     }
 }

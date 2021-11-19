@@ -138,7 +138,10 @@ pub trait PacketVariableHeaderPublishAck {
 
 impl PacketVariableHeaderPublishAck for VariableHeaderPublishAck {
     fn value(&self) -> Vec<u8> {
-        vec![(self.packet_identifier >> 8) as u8, (self.packet_identifier & 0xFF) as u8]
+        vec![
+            (self.packet_identifier >> 8) as u8,
+            (self.packet_identifier & 0xFF) as u8,
+        ]
     }
     fn unvalue(x: Vec<u8>, readed: &mut usize) -> VariableHeaderPublishAck {
         *readed = 2;
