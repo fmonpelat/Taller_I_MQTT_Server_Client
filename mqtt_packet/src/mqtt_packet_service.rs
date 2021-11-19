@@ -713,6 +713,5 @@ mod tests {
             assert!(value.len() == publish_stub.len());
             assert!(publish_stub.eq(&value));
         }
-        
     }
 }
