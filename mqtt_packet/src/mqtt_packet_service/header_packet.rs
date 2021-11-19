@@ -9,12 +9,12 @@ pub mod control_type {
     pub const PUBCOMP: u8 = 0x70;
     pub const SUBSCRIBE: u8 = 0x80;
     pub const SUBACK: u8 = 0x90;
-    pub const UNSUBSCRIBE: u8 = 0xA;
-    pub const UNSUBACK: u8 = 0xB;
-    pub const PINGREQ: u8 = 0xC;
-    pub const PINGRESP: u8 = 0xD;
-    pub const DISCONNECT: u8 = 0xE;
-    pub const RESERVED: u8 = 0xF;
+    pub const UNSUBSCRIBE: u8 = 0xA0;
+    pub const UNSUBACK: u8 = 0xB0;
+    pub const PINGREQ: u8 = 0xC0;
+    pub const PINGRESP: u8 = 0xD0;
+    pub const DISCONNECT: u8 = 0xE0;
+    pub const RESERVED: u8 = 0xF0;
 }
 
 #[allow(dead_code)]
@@ -71,9 +71,13 @@ impl PacketHeader for Header {
 
     fn unvalue(x: Vec<u8>, readed: &mut usize) -> Header {
         *readed = 0;
+        let mut remaining_length_0 = vec![0];
         let control_type = x[0] & 0xF0;
         let control_flags = x[0] & 0x0F;
-        let remaining_length_0 = Header::get_remaining_length(x[1..x.len()].to_vec(), readed);
+       
+        if x.len() > 1 { // accounting the first 0 pos of the array
+            remaining_length_0 = Header::get_remaining_length(x[1..x.len()].to_vec(), readed);
+        }
         *readed += 1;
         Header {
             control_type,

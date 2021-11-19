@@ -126,9 +126,39 @@ impl PacketVariableHeaderPublish for VariableHeaderPublish {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct VariableHeaderPublishAck {
+    pub packet_identifier: u16, // 2 bytes
+}
+
+pub trait PacketVariableHeaderPublishAck {
+    fn value(&self) -> Vec<u8>;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> VariableHeaderPublishAck;
+}
+
+impl PacketVariableHeaderPublishAck for VariableHeaderPublishAck {
+    fn value(&self) -> Vec<u8> {
+        vec![(self.packet_identifier >> 8) as u8, (self.packet_identifier & 0xFF) as u8]
+    }
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> VariableHeaderPublishAck {
+        *readed = 2;
+        VariableHeaderPublishAck {
+            packet_identifier: (x[0] as u16) << 8 | (x[1] as u16),
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_value_publishack() {
+        let variable_header_publishack_stub = VariableHeaderPublishAck {
+            packet_identifier: 0x1234,
+        };
+        let variable_header_publishack_value = variable_header_publishack_stub.value();
+        assert_eq!(variable_header_publishack_value, vec![0x34, 0x12]);
+    }
 
     #[test]
     fn unvalue_variable_header_publish() {
