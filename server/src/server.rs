@@ -4,11 +4,14 @@ use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::{Arc};
 use std::{thread};
 use crate::logger::{Logger, Logging};
+use mqtt_packet::mqtt_packet_service::{Packet, Utils};
 use mqtt_packet::mqtt_packet_service::header_packet::{control_type};
+use mqtt_packet::mqtt_packet_service::payload_packet::Payload;
+use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader};
 
 pub struct Server {
 	server_address: String, 
-  server_port: String,
+  server_port: String, 
 	logger: Arc<Logger>,   
   }
 
@@ -33,12 +36,13 @@ impl Server {
         Ok(_size) => {
           println!("{:?}", buff);
           if _size > 0 {
-            let packet_identifier = buff[..1].to_vec().pop(); //FM: porque no directamente haces buff[0]? eso te daria ya el u8 y no option...
-            if Server::is_mqtt_packet( packet_identifier ) {
-              logger.debug(format!("Found a MQTT packet: {}",packet_identifier.unwrap()));
+            let packet_identifier = buff[0];
+            logger.debug(format!("Check if a MQTT PACKET is received: {:?}",packet_identifier));
+            if Packet::<VariableHeader, Payload>::is_mqtt_packet(&buff) {
+              logger.debug(format!("Found a MQTT packet: {:?}",packet_identifier));
               match Server::handle_packet(packet_identifier, & mut stream, &logger) {
                 Ok(_) => {
-                  logger.debug(format!("Connection with {} closed", packet_identifier.unwrap()));
+                  logger.debug(format!("Connection with {} closed", packet_identifier));
                   // TODO let remaining_len = Packet::<VariableHeader, Payload>::get_packet_length(&buff[1..buff.len()].to_vec());
                   // TODO buff=buff[(remaining_len+1)..buff.len()]
                   // todo check buff
@@ -106,83 +110,12 @@ impl Server {
 
   }
 
-  fn is_mqtt_packet( packet_id:Option<u8> ) -> bool{
-    let mut is_founded = false;  // 
-    let id = packet_id.unwrap();
-    //let found_id = Server::packet_identifier(id);
-    if Server::packet_identifier(id) == id { // FM: que pasa si llega un 255 como packet identifier? lo toma como valido....
-      is_founded = true 
-    }
-    is_founded 
 
-    // FM: podrias haber buscado en un vector de packet identifiers validos capaz era mas facil que hacer match porque no son tantos
-    // algo como:
-    // let packet_identifiers = [
-    //   control_type::CONNECT,
-    //   control_type::CONNACK,
-    //   control_type::PUBLISH,
-    //   //...
-    // ];
-    // let found_id = packet_identifiers.iter().find(|&x| x == &id);
-    // found_id.is_some()
-  }
-
-  fn packet_identifier( packet_identifier:u8) -> u8 {
-    
-    match packet_identifier {
-      control_type::CONNECT =>{
-        control_type::CONNECT   
-      },
-      control_type::CONNACK =>{
-        control_type::CONNACK  
-      },
-      control_type::PUBLISH =>{
-        control_type::PUBLISH    
-      },
-      control_type::PUBACK =>{
-        control_type::PUBACK   
-      },
-      control_type::PUBREC =>{
-        control_type::PUBREC   
-      },
-      control_type::PUBREL =>{
-        control_type::PUBREL    
-      },
-      control_type::PUBCOMP =>{
-        control_type::PUBCOMP    
-      },
-      control_type::SUBSCRIBE =>{
-        control_type::SUBSCRIBE    
-      },
-      control_type::SUBACK =>{
-        control_type::SUBACK    
-      },
-      control_type::UNSUBSCRIBE =>{
-        control_type::UNSUBSCRIBE  
-      },
-      control_type::UNSUBACK =>{
-        control_type::UNSUBACK   
-      },
-      control_type::PINGREQ =>{
-        control_type::PINGREQ   
-      },
-      control_type::PINGRESP =>{
-        control_type::PINGRESP   
-      },
-      control_type::DISCONNECT =>{
-        control_type::DISCONNECT   
-      },
-      _ => {
-        255 //return a invalid id
-      }
-    }
-  }
-
-  fn handle_packet( packet_id: Option<u8>, stream: &mut TcpStream, logger: &Arc<Logger>) -> Result<()>{
-    let found_id = Server::packet_identifier(packet_id.unwrap());
+  fn handle_packet( packet_id: u8, stream: &mut TcpStream, logger: &Arc<Logger>) -> Result<()>{
+    //let found_id = Server::packet_identifier(packet_id);
     //TODO SEE IF CLIENT/PEER IS CONNECTED --> CHECK HASH
     // CHECK CONTROL TYPE IS A CONNECT BEFORE MATCH
-    match found_id {
+    match packet_id {
       control_type::CONNECT => { 
         //TODO CHECK VALID CLIENT
         println!("Connect packet received \n");
