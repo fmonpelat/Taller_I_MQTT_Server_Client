@@ -262,7 +262,7 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
 // general implementation for all packets
 
 pub trait Utils {
-    fn get_packet_length(vec: &[u8]) -> usize;
+    fn get_packet_length(vec: &[u8], readed: &mut usize) -> usize;
     fn is_mqtt_packet(vec: &[u8]) -> bool;
 }
 
@@ -278,9 +278,9 @@ impl<T, P> Utils for Packet<T, P> {
         }
         control_type_vec::CONTROL_TYPE.contains(&control_type)
     }
-    fn get_packet_length(vec: &[u8]) -> usize {
-        let mut _readed: usize = 0;
-        let remaining_len = Header::get_remaining_length(vec.to_vec(), &mut _readed);
+    fn get_packet_length(vec: &[u8], readed: &mut usize) -> usize {
+        *readed = 0;
+        let remaining_len = Header::get_remaining_length(vec.to_vec(), readed);
         // println!("remaining_len: {:?} readed: {:?}", remaining_len, _readed);
         let remaining = Header::decode_remaining_length(&remaining_len);
         // println!("decoded remaining: {}", remaining);
@@ -542,11 +542,14 @@ mod tests {
             let client_identifier = String::from("testId");
             let packet = Packet::<VariableHeader, Payload>::new();
             let packet = packet.connect(client_identifier);
+            let mut readed: usize = 0;
             let value = packet.value();
             let remaining_len = Packet::<VariableHeader, Payload>::get_packet_length(
                 &value[1..value.len()].to_vec(),
+                &mut readed
             );
             assert_eq!(remaining_len, 18);
+            assert_eq!(readed, 1);
         }
 
         #[test]
