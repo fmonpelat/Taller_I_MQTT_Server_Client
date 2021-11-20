@@ -64,7 +64,7 @@ impl Packet<VariableHeader, Payload> {
         }
     }
     #[allow(dead_code)]
-    fn value(&self) -> Vec<u8> {
+    pub fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
         let variable_header = if self.has_variable_header {
             self.variable_header.value()
@@ -99,7 +99,7 @@ impl Packet<VariableHeader, Payload> {
 
 impl Packet<VariableHeaderConnack, Payload> {
     #[allow(dead_code)]
-    fn value(&self) -> Vec<u8> {
+    pub fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
         let variable_header = if self.has_variable_header {
             self.variable_header.value()
@@ -178,7 +178,7 @@ impl Packet<VariableHeaderPublishAck, Payload> {
         }
     }
     #[allow(dead_code)]
-    fn value(&self) -> Vec<u8> {
+    pub fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
         let variable_header = if self.has_variable_header {
             self.variable_header.value()
@@ -191,7 +191,7 @@ impl Packet<VariableHeaderPublishAck, Payload> {
             Vec::new()
         };
         // put payload len before payload content
-        if payload.is_empty() {
+        if !payload.is_empty() {
             let payload_len = payload.len() as u16;
             let mut vec: Vec<u8> = Vec::with_capacity(payload.len() + 1);
             vec.push((payload_len >> 8) as u8);
@@ -224,7 +224,7 @@ impl Packet<VariableHeaderPublishAck, Payload> {
 
 impl Packet<VariableHeaderPublish, PublishPayload> {
     #[allow(dead_code)]
-    fn value(&self) -> Vec<u8> {
+    pub fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
         let variable_header = if self.has_variable_header {
             self.variable_header.value()
