@@ -191,7 +191,7 @@ impl Packet<VariableHeaderPublishAck, Payload> {
             Vec::new()
         };
         // put payload len before payload content
-        if payload.is_empty() {
+        if !payload.is_empty() {
             let payload_len = payload.len() as u16;
             let mut vec: Vec<u8> = Vec::with_capacity(payload.len() + 1);
             vec.push((payload_len >> 8) as u8);
