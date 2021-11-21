@@ -29,13 +29,54 @@ fn main() {
         match user_input[0].to_lowercase().as_ref() {
             "connect" => {
                 client.connect();
-                let packet = packet.connect(String::from(&user_input[1]));
+                let packet = packet.connect(client.get_id_client());
                 client.send(packet.value());
                 println!("send connect");
             },
             "publish" => {
                 // send publish
-                //let packet = packet.publish();
+                
+                let dup_str: Option<String> = user_input.get(1).and_then(|v| {v.parse().ok()});
+                let qos_str: Option<String> = user_input.get(2).and_then(|v| {v.parse().ok()});
+                let retain_str: Option<String> = user_input.get(3).and_then(|v| {v.parse().ok()});
+                let topic_name_str: Option<String> = user_input.get(4).and_then(|v| {v.parse().ok()});
+                let message_str: Option<String> = user_input.get(5).and_then(|v| {v.parse().ok()});
+                let mut dup: u8=0;
+                let mut qos: u8=0;
+                let mut retain: u8=0; 
+                let mut topic_name: String =String::from("");
+                let mut message: String=String::from(""); 
+                
+                match dup_str {
+                    Some(_) => {dup = user_input[1].trim().parse()
+                    .expect("wrong value!");
+                },
+                     None => println!("non-existent dup value"),
+                }
+                match qos_str {
+                    Some(_) => {qos = user_input[2].trim().parse()
+                    .expect("wrong value!");
+                },
+                     None => println!("non-existent qos value"),
+                }
+                match retain_str {
+                    Some(_) => {retain = user_input[3].trim().parse()
+                    .expect("wrong value!");
+                },
+                     None => println!("non-existent retain value"),
+                }
+                match topic_name_str {
+                    Some(_) => {topic_name = user_input[4].clone();
+                },
+                     None => println!("non-existent topic name value"),
+                }
+                match message_str {
+                    Some(_) => {message = user_input[5].clone();
+                },
+                     None => println!("non-existent message value"),
+                }
+
+                let packet = packet.publish(dup,qos,retain,topic_name,message);
                 if client.is_connect() {
                     client.send(packet.value());
                     println!("send publish");

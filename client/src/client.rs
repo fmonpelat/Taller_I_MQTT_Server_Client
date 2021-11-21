@@ -2,6 +2,10 @@ use core::time;
 use std::net::{ TcpStream };
 use std::io::{ Read, Write };
 use std::sync::{ Arc, Mutex };
+use std::iter;
+extern crate rand;
+use rand::{Rng, thread_rng};
+use rand::distributions::Alphanumeric;
 
 use std::thread;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -18,6 +22,7 @@ pub struct Client {
   tx: Arc<Mutex<Sender<Vec<u8>>>>,
   rx: Arc<Mutex<Receiver<Vec<u8>>>>,
   is_connect: bool,
+  id_client: String,
 }
 
 impl Client {
@@ -25,18 +30,25 @@ impl Client {
     let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = channel();
     let rx = Arc::new(Mutex::new(rx));
     let tx = Arc::new(Mutex::new(tx));
+    let mut rng = thread_rng();
+    let id_client: String = iter::repeat(())
+        .map(|()| rng.sample(Alphanumeric))
+        .map(char::from)
+        .take(10)
+        .collect();
     Client{
       server_host,
       server_port,
       tx,
       rx,
       is_connect: false,
+      id_client,
     }
   }
 
 
   pub fn publish(&self, _topic: String, _payload: String) {
-    let Self { server_host: _, server_port: _, tx, rx: _ , is_connect: _} = self;
+    let Self { server_host: _, server_port: _, tx, rx: _ , is_connect: _ , id_client: _} = self;
     let msg = vec![0x30];
 
     let packet = Packet::<VariableHeader, Payload>::new();
@@ -150,4 +162,7 @@ impl Client {
     
   }
 
+  pub fn get_id_client(&self) -> String {
+    self.id_client.clone()
+  }
 }

@@ -86,7 +86,7 @@ impl Packet<VariableHeader, Payload> {
 
 impl Packet<VariableHeaderConnack, Payload> {
     #[allow(dead_code)]
-    fn value(&self) -> Vec<u8> {
+    pub fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
         let variable_header = if self.has_variable_header {
             self.variable_header.value()
@@ -121,7 +121,7 @@ impl Packet<VariableHeaderConnack, Payload> {
 
 impl Packet<VariableHeaderPublish, PublishPayload> {
     #[allow(dead_code)]
-    fn value(&self) -> Vec<u8> {
+    pub fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(1024);
         let variable_header = if self.has_variable_header {
             self.variable_header.value()
