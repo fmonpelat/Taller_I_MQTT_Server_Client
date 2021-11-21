@@ -33,6 +33,7 @@ pub mod control_flags {
     pub const DUP: u8 = 0x08;
 }
 
+// Header of MQTT implentation
 #[derive(Debug, Default)]
 pub struct Header {
     // total length of 4 bytes (16 bits)
@@ -53,6 +54,8 @@ pub trait PacketHeader {
 }
 
 impl PacketHeader for Header {
+    //  this function is used to get the bytes of the header packet
+    //
     fn value(&self) -> Vec<u8> {
         let mut header_vec: Vec<u8> = Vec::with_capacity(3);
         header_vec.push(self.get_cmd_type() + self.get_cmd_flags());
