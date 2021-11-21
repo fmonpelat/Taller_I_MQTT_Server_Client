@@ -6,8 +6,10 @@ use std::sync::{ Arc, Mutex };
 use std::thread;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
-//extern crate mqtt_packet;
-//use mqtt_packet::mqtt_packet_service::{ Packet };
+use mqtt_packet::mqtt_packet_service::{Packet, Utils, ClientPacket};
+use mqtt_packet::mqtt_packet_service::header_packet::{control_type};
+use mqtt_packet::mqtt_packet_service::payload_packet::Payload;
+use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader};
 
 #[allow(dead_code)]
 pub struct Client {
@@ -15,6 +17,7 @@ pub struct Client {
   server_port: String,
   tx: Arc<Mutex<Sender<Vec<u8>>>>,
   rx: Arc<Mutex<Receiver<Vec<u8>>>>,
+  client_id: String,
 }
 
 impl Client {
@@ -22,16 +25,18 @@ impl Client {
     let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = channel();
     let rx = Arc::new(Mutex::new(rx));
     let tx = Arc::new(Mutex::new(tx));
+    let client_id = String::from("test_id");
     Client{
       server_host,
       server_port,
       tx,
       rx,
+      client_id,
     }
   }
 
   pub fn publish(&self, _topic: String, _payload: String) {
-    let Self { server_host: _, server_port: _, tx, rx: _ } = self;
+    let Self { server_host: _, server_port: _, tx, rx: _, client_id:_ } = self;
     let msg = vec![0x30];
 
     tx.lock().unwrap()
@@ -50,7 +55,10 @@ impl Client {
       Ok(mut stream) => {
         println!("Successfully connected to server in port {}", self.server_port);
 
-        let msg: Vec<u8> = vec![0x10]; // TODO : send connect packet value
+        let packet = Packet::<VariableHeader, Payload>::new();
+        let packet = packet.connect(self.client_id.clone());
+        let msg: Vec<u8> = packet.value(); 
+
         stream.write_all(&(msg)).unwrap();
 
         let stream_arc = Arc::new(Mutex::new(stream));
