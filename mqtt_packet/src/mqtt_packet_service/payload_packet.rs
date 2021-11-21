@@ -200,11 +200,8 @@ impl PacketPublishPayload for PublishPayload {
             return PublishPayload::default();
         }
         let payload_len = x[0] as u16 + (x[1] as u16);
-        let payload = String::from_utf8(x[2..(2 + payload_len as usize)].to_vec()).unwrap_or_else(
-            |_| {
-                String::from("")
-            },
-        );
+        let payload = String::from_utf8(x[2..(2 + payload_len as usize)].to_vec())
+            .unwrap_or_else(|_| String::from(""));
         *readed = 2 + payload_len as usize;
         PublishPayload { message: payload }
     }

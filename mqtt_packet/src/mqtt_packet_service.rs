@@ -3,11 +3,11 @@ use header_packet::{control_flags, control_type, control_type_vec, Header, Packe
 mod variable_header_packet;
 use variable_header_packet::{
     connect_flags, PacketVariableHeader, PacketVariableHeaderConnack, PacketVariableHeaderPublish,
-    PacketVariableHeaderPublishAck, VariableHeader, VariableHeaderConnack, VariableHeaderPublish
+    PacketVariableHeaderPublishAck, VariableHeader, VariableHeaderConnack, VariableHeaderPublish,
 };
 mod payload_packet;
-use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload};
 use crate::mqtt_packet_service::variable_header_packet::VariableHeaderPublishAck;
+use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload};
 
 /// Implementation of the MQTT packet service.
 /// This service is used to create and parse MQTT packets
@@ -309,32 +309,32 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
     /// Deserializes a Packet<VariableHeaderPublish, Payload>
     #[allow(dead_code)]
     fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPublish, PublishPayload> {
-      let mut absolute_index: usize = 0;
-      let mut has_payload = false;
-      let mut has_variable_header = false;
-      let mut readed: usize = 0;
-      let header = Header::unvalue(x.clone(), &mut readed);
-      absolute_index += readed;
+        let mut absolute_index: usize = 0;
+        let mut has_payload = false;
+        let mut has_variable_header = false;
+        let mut readed: usize = 0;
+        let header = Header::unvalue(x.clone(), &mut readed);
+        absolute_index += readed;
 
-      let variable_header =
-        VariableHeaderPublish::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
+        let variable_header =
+            VariableHeaderPublish::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
 
-      if readed > 0 {
-          has_variable_header = true;
-      }
-      absolute_index += readed;
+        if readed > 0 {
+            has_variable_header = true;
+        }
+        absolute_index += readed;
 
-      let payload = PublishPayload::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
-      if readed > 0 {
-          has_payload = true;
-      }
-      Packet::<VariableHeaderPublish, PublishPayload> {
-          header,
-          has_variable_header,
-          variable_header,
-          has_payload,
-          payload,
-      }
+        let payload = PublishPayload::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
+        if readed > 0 {
+            has_payload = true;
+        }
+        Packet::<VariableHeaderPublish, PublishPayload> {
+            header,
+            has_variable_header,
+            variable_header,
+            has_payload,
+            payload,
+        }
     }
 }
 // general implementation for all packets
@@ -653,7 +653,7 @@ mod tests {
             let value = packet.value();
             let remaining_len = Packet::<VariableHeader, Payload>::get_packet_length(
                 &value[1..value.len()].to_vec(),
-                &mut readed
+                &mut readed,
             );
             assert_eq!(remaining_len, 18);
             assert_eq!(readed, 1);
@@ -815,7 +815,6 @@ mod tests {
                 control_flags::RESERVED
             );
             assert_eq!(unvalued_packet.header.remaining_length_0, vec![0]);
-
         }
 
         #[test]
@@ -873,8 +872,14 @@ mod tests {
             assert_eq!(unvalue.header.control_type, control_type::PUBLISH);
             assert_eq!(unvalue.header.control_flags, dup | qos | retain);
             assert_eq!(unvalue.header.remaining_length_0, vec![24]);
-            assert_eq!(unvalue.variable_header.topic_name, topic_name.clone().as_bytes().to_vec());
-            assert_eq!(unvalue.variable_header.packet_identifier, packet_identifier as u16);
+            assert_eq!(
+                unvalue.variable_header.topic_name,
+                topic_name.clone().as_bytes().to_vec()
+            );
+            assert_eq!(
+                unvalue.variable_header.packet_identifier,
+                packet_identifier as u16
+            );
             assert_eq!(unvalue.payload.message, payload.clone());
         }
     }
