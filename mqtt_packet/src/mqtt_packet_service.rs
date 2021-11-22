@@ -1,6 +1,6 @@
-mod header_packet;
+pub mod header_packet;
 use header_packet::{control_flags, control_type, control_type_vec, Header, PacketHeader};
-mod variable_header_packet;
+pub mod variable_header_packet;
 use variable_header_packet::{
     connect_flags, PacketVariableHeader, PacketVariableHeaderConnack, PacketVariableHeaderPublish,
     PacketVariableHeaderPublishAck, VariableHeader, VariableHeaderConnack, VariableHeaderPublish,
