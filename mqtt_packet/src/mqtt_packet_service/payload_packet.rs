@@ -1,6 +1,17 @@
 /// A Payload for a mqtt packet
 /// There are several payloads for a mqtt packet
 ///
+
+/// The return code for a suback packet
+#[allow(dead_code)]
+pub mod suback_return_codes {
+    pub const SUCCESS_QOS0: u8 = 0x00;
+    pub const SUCCESS_QOS1: u8 = 0x01;
+    pub const SUCCESS_QOS2: u8 = 0x02;
+    pub const FAILURE: u8 = 0x80;
+
+}
+
 /// Connect has the payload type Payload
 #[derive(Debug, Default)]
 pub struct Payload {
@@ -279,10 +290,64 @@ impl PacketPayloadSuscribe for SuscribePayload {
         payload_vec
     }
 }
+
+
+/// Suscribe has the payload type SuscribePayload
+#[derive(Debug, Default)]
+pub struct SubackPayload {
+    pub qos: Vec<u8>,
+}
+pub trait PacketSubackPayload {
+    fn value(&self) -> Vec<u8>;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> SubackPayload;
+}
+
+impl PacketSubackPayload for SubackPayload {
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> SubackPayload {
+        *readed = 0;
+        if x.is_empty() {
+            return SubackPayload::default();
+        }
+        *readed = x.len();
+        SubackPayload { 
+            qos: x,
+         }
+    }
+
+    fn value(&self) -> Vec<u8> {
+        let mut payload_vec: Vec<u8> = Vec::with_capacity(2048); // 2KB max payload
+        self.qos
+            .iter()
+            .for_each(|x| {
+                payload_vec.push(*x);
+            });
+        if payload_vec.is_empty() {
+            return vec![];
+        }
+        payload_vec
+    }
+}
+
+
+
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn suback_payload_test() {
+        let mut readed = 0;
+        let payload = SubackPayload {
+            qos: vec![suback_return_codes::SUCCESS_QOS0, suback_return_codes::SUCCESS_QOS1, suback_return_codes::FAILURE],
+        };
+        let payload_vec = payload.value();
+        // println!("payload_vec: {:?}", payload_vec);
+        let payload_ = SubackPayload::unvalue(payload_vec.clone(), &mut readed);
+        assert_eq!(payload.qos, payload_.qos);
+        assert_eq!(readed, payload_vec.len());
+    }
 
     #[test]
     fn suscribe_payload_test() {
