@@ -132,7 +132,10 @@ impl Client {
       Ok(mut stream) => {
         println!("Successfully connected to server in port {}", self.server_port);
 
-        let msg: Vec<u8> = vec![0x10]; // TODO : send connect packet value
+        let packet = Packet::<VariableHeader, Payload>::new();
+        let packet = packet.connect(self.client_id.clone());
+        let msg: Vec<u8> = packet.value(); 
+
         stream.write_all(&(msg)).unwrap();
 
         let stream_arc = Arc::new(Mutex::new(stream));
