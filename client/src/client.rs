@@ -7,9 +7,12 @@ extern crate rand;
 use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
 
-use std::thread;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
+
+use std::{sync, thread};
+use std::time as timer;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use mqtt_packet::mqtt_packet_service::{Packet};
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader};
@@ -24,8 +27,40 @@ pub struct Client {
   id_client: String,
 }
 
-pub struct ClientConnect{
-  pub is_connect: bool,
+pub struct ClientConected {
+  handle: Option<thread::JoinHandle<()>>,
+  pub isConnected: sync::Arc<AtomicBool>,
+}
+
+impl ClientConected {
+  pub fn new() -> ClientConected {
+    ClientConected {
+          handle: None,
+          isConnected: sync::Arc::new(AtomicBool::new(false)),
+      }
+  }
+
+  pub fn startConnection(&mut self) -> ()
+  {
+      self.isConnected.store(true, Ordering::SeqCst);
+
+      let isConnected = self.isConnected.clone();
+
+      self.handle = Some(thread::spawn(move || {
+          //let mut funtion = funtion;
+          while isConnected.load(Ordering::SeqCst) {
+            //funtion();
+            thread::sleep(timer::Duration::from_millis(10));
+          }
+      }));
+  }
+
+  pub fn stopConnection(&mut self) {
+      self.isConnected.store(false, Ordering::SeqCst);
+      self.handle
+          .take().expect("Non-running thread")
+          .join().expect("Could not join");
+  }
 }
 
 impl Client {
@@ -84,14 +119,15 @@ impl Client {
     }
   }
 
-  pub fn connect(& self) -> ClientConnect {
+  pub fn connect(& self) -> ClientConected {
     // let Self {
     //   server_host,
     //   server_port,
     //   tx: _,
     //   rx,
     // } = self;
-    let mut is_connect = true;
+
+    let mut clientConnected = ClientConected::new();
     match TcpStream::connect(self.server_host.to_string() + ":" + &self.server_port) {
       Ok(mut stream) => {
         println!("Successfully connected to server in port {}", self.server_port);
@@ -114,12 +150,12 @@ impl Client {
                     stream_arc.lock().unwrap().write_all(&msg).unwrap(); 
                     // Drop the `MutexGuard` to allow other threads to make use of rx
                     drop(guard);
-                    is_connect = true;
+                    clientConnected.startConnection();
                     thread::sleep(Duration::from_millis(50));
                 },
                 Err(e) => {
                     println!("Thread client write got a error: {:?}", e);
-                    is_connect = false;
+                    clientConnected.stopConnection();
                     break;
                 }
             };
@@ -155,7 +191,7 @@ impl Client {
           println!("Failed to connect: {}", e);
       }
     };
-    ClientConnect{is_connect: is_connect}  
+    clientConnected
   }
 
   pub fn get_id_client(&self) -> String {

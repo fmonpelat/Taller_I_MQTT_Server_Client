@@ -1,9 +1,10 @@
 mod client;
 use std::io::stdin;
-use crate::client::Client;
+use crate::client::{Client,ClientConected};
 use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket};
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader};
 use mqtt_packet::mqtt_packet_service::payload_packet::{Payload};
+use std::sync::atomic::{Ordering};
 
 
 fn main() {
@@ -11,7 +12,7 @@ fn main() {
 
     println!("MQTT Client V1.0\n");
     //client.connect();
-    let mut is_connect = true;
+    let mut isConnected = ClientConected::new();
     loop {
         // read from stdin and send to server
         //let mut input = String::new();
@@ -26,7 +27,7 @@ fn main() {
         
         match user_input[0].to_lowercase().as_ref() {
             "connect" => {
-                is_connect = client.connect().is_connect;
+                isConnected = client.connect();
                 let packet = packet.connect(client.get_id_client());
                 client.send(packet.value());
                 println!("send connect");
@@ -75,14 +76,14 @@ fn main() {
                 }
 
                 let packet = packet.publish(dup,qos,retain,topic_name,message);
-                if is_connect {
+                if isConnected.isConnected.load(Ordering::SeqCst) {
                     client.send(packet.value());
                     println!("send publish");
                 }
             },
             "pingreq" => {
                 // send publish
-                if is_connect {
+                if isConnected.isConnected.load(Ordering::SeqCst) {
                     let packet = packet.pingresp();
                 
                     client.send(packet.value());
