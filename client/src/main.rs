@@ -1,18 +1,16 @@
 mod client;
 use std::io::stdin;
-use crate::client::{Client,ClientConected};
+use crate::client::{Client};
 use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket};
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader};
 use mqtt_packet::mqtt_packet_service::payload_packet::{Payload};
-use std::sync::atomic::{Ordering};
-
 
 fn main() {
-    let client = Client::new(String::from("localhost"),String::from("3333"));
+    let client = Client::new();
 
     println!("MQTT Client V1.0\n");
-    //client.connect();
-    let mut isConnected = ClientConected::new();
+    println!("Client connected?: {:?}", client.is_connected());
+
     loop {
         // read from stdin and send to server
         //let mut input = String::new();
@@ -27,10 +25,17 @@ fn main() {
         
         match user_input[0].to_lowercase().as_ref() {
             "connect" => {
-                isConnected = client.connect();
+              //TODO: Agreagar validacion de los parametros ingresados como host, port, username, password
+              if !client.is_connected() {
+                // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
+                client.connect();
                 let packet = packet.connect(client.get_id_client());
                 client.send(packet.value());
                 println!("send connect");
+                //TODO:  esperar 1 segundo o menos y luego revisar la variable is_connected e imprimir si esta conectado o no
+              } else {
+                println!("Already connected!");
+              }
             },
             "publish" => {
                 // send publish
@@ -74,16 +79,16 @@ fn main() {
                 },
                      None => println!("non-existent message value"),
                 }
-
-                let packet = packet.publish(dup,qos,retain,topic_name,message);
-                if isConnected.isConnected.load(Ordering::SeqCst) {
+                let packet_identifier = client.get_packet_identifier();
+                let packet = packet.publish(dup,qos,retain,packet_identifier,topic_name,message);
+                if client.is_connected() {
                     client.send(packet.value());
                     println!("send publish");
                 }
             },
             "pingreq" => {
                 // send publish
-                if isConnected.isConnected.load(Ordering::SeqCst) {
+                if client.is_connected() {
                     let packet = packet.pingresp();
                 
                     client.send(packet.value());

@@ -6,7 +6,7 @@ use variable_header_packet::{
     PacketVariableHeaderPacketIdentifier, VariableHeader, VariableHeaderConnack, VariableHeaderPublish,
     VariableHeaderPacketIdentifier
 };
-mod payload_packet;
+pub mod payload_packet;
 use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload, SuscribePayload, PacketPayloadSuscribe, suback_return_codes, PacketSubackPayload};
 
 use self::payload_packet::SubackPayload;
