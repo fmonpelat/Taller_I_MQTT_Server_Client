@@ -5,7 +5,7 @@ use variable_header_packet::{
     connect_flags, PacketVariableHeader, PacketVariableHeaderConnack, PacketVariableHeaderPublish,
     PacketVariableHeaderPublishAck, VariableHeader, VariableHeaderConnack, VariableHeaderPublish,
 };
-mod payload_packet;
+pub mod payload_packet;
 use crate::mqtt_packet_service::variable_header_packet::VariableHeaderPublishAck;
 use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload};
 
