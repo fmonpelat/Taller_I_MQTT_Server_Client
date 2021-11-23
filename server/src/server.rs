@@ -92,12 +92,11 @@ impl Server {
     // accept connections and process them, spawning a new thread for each one
     self.logger.debug("start binding".to_string());
     println!("Server listening on port {}", self.server_port);
-    let server_clone = self.clone();
-    let mut server_mutex = Arc::new(Mutex::new(&server_clone));
-    //let mut cloned: &Arc<Mutex<&Server>> = server_mutex.clone();
 
     for stream in listener.incoming() {
       self.logger.info("start listening to clients".to_string());
+      let server_mutex = Arc::new(Mutex::new(&self));
+      let clone_mutex = Arc::clone(&server_mutex);
         match stream {
             Ok(stream) => {
                 let peer = stream.peer_addr()?;
@@ -108,7 +107,7 @@ impl Server {
                 .spawn(move || {
                     // connection succeeded
                     println!("Connection from {}", peer);
-                    let locked = &mut server_mutex.lock().unwrap();
+                    let mut locked = clone_mutex.lock().unwrap();
                     match locked.handle_client(stream, logger) {
                         Ok(_) => {
                             println!("Connection with {} closed", peer);
@@ -124,8 +123,6 @@ impl Server {
                 break
             }
       }
-      server_mutex = Arc::new(Mutex::new(& server_clone));
-      //cloned = &server_mutex.clone();
     }
     // close the socket server
     drop(listener);
