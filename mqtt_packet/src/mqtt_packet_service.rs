@@ -14,11 +14,11 @@ use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayloa
 
 #[derive(Debug, Default)]
 pub struct Packet<T, P> {
-    header: Header,
-    has_variable_header: bool,
-    variable_header: T,
-    has_payload: bool,
-    payload: P,
+    pub header: Header,
+    pub has_variable_header: bool,
+    pub variable_header: T,
+    pub has_payload: bool,
+    pub payload: P,
 }
 
 // specific implementations for each packet type
