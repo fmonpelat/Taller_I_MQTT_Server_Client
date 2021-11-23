@@ -1,6 +1,17 @@
 /// A Payload for a mqtt packet
 /// There are several payloads for a mqtt packet
 ///
+
+/// The return code for a suback packet
+#[allow(dead_code)]
+pub mod suback_return_codes {
+    pub const SUCCESS_QOS0: u8 = 0x00;
+    pub const SUCCESS_QOS1: u8 = 0x01;
+    pub const SUCCESS_QOS2: u8 = 0x02;
+    pub const FAILURE: u8 = 0x80;
+
+}
+
 /// Connect has the payload type Payload
 #[derive(Debug, Default)]
 pub struct Payload {
@@ -218,10 +229,160 @@ impl PacketPublishPayload for PublishPayload {
     }
 }
 
+
+/// Suscribe has the payload type SuscribePayload
+#[derive(Debug, Default)]
+pub struct SuscribePayload {
+    pub topic_filter: Vec<String>,
+    pub qos: Vec<u8>,
+}
+pub trait PacketPayloadSuscribe {
+    fn value(&self) -> Vec<u8>;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> SuscribePayload;
+}
+
+impl PacketPayloadSuscribe for SuscribePayload {
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> SuscribePayload {
+        *readed = 0;
+        if x.is_empty() {
+            return SuscribePayload::default();
+        }
+        let mut index = 0; // index of the payload value
+        let mut topic_filter = Vec::new();
+        let mut qos = Vec::new();
+
+        while index < x.len() {
+            let topic_filter_len = x[index] as u16 + (x[index + 1] as u16);
+            index += 2;
+            let topic_filter_ = String::from_utf8(
+                x[index..(index + topic_filter_len as usize)].to_vec(),
+            )
+            .unwrap_or_else(|_| String::from("")); // topic_filter default empty as error
+
+            index += topic_filter_len as usize; // index of the next topic_filter length
+            topic_filter.push(topic_filter_);
+            let qos_ = x[index];
+            index += 1;
+            qos.push(qos_);
+        }
+        *readed = index;
+        SuscribePayload { 
+            topic_filter,
+            qos,
+         }
+    }
+
+    fn value(&self) -> Vec<u8> {
+        let mut payload_vec: Vec<u8> = Vec::with_capacity(2048); // 2KB max payload
+        let mut i:usize = 0;
+        self.topic_filter
+            .iter()
+            .for_each(|x| {
+                let x_ = (x.len() as u16).to_be_bytes();
+                payload_vec.extend(x_.iter()); // extend payload_vec with topic_filter[i] length
+                payload_vec.extend(x.as_bytes()); // extend payload_vec with topic_filter[i]
+                payload_vec.push(self.qos[i] & 0x03); // extend payload_vec with qos[i] (ensuring that we use only the first 2 bits)
+                i += 1;
+            });
+        if payload_vec.is_empty() {
+            return vec![];
+        }
+        payload_vec
+    }
+}
+
+
+/// Suscribe has the payload type SuscribePayload
+#[derive(Debug, Default)]
+pub struct SubackPayload {
+    pub qos: Vec<u8>,
+}
+pub trait PacketSubackPayload {
+    fn value(&self) -> Vec<u8>;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> SubackPayload;
+}
+
+impl PacketSubackPayload for SubackPayload {
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> SubackPayload {
+        *readed = 0;
+        if x.is_empty() {
+            return SubackPayload::default();
+        }
+        *readed = x.len();
+        SubackPayload { 
+            qos: x,
+         }
+    }
+
+    fn value(&self) -> Vec<u8> {
+        let mut payload_vec: Vec<u8> = Vec::with_capacity(2048); // 2KB max payload
+        self.qos
+            .iter()
+            .for_each(|x| {
+                payload_vec.push(*x);
+            });
+        if payload_vec.is_empty() {
+            return vec![];
+        }
+        payload_vec
+    }
+}
+
+
+
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn suback_payload_test() {
+        let mut readed = 0;
+        let payload = SubackPayload {
+            qos: vec![suback_return_codes::SUCCESS_QOS0, suback_return_codes::SUCCESS_QOS1, suback_return_codes::FAILURE],
+        };
+        let payload_vec = payload.value();
+        // println!("payload_vec: {:?}", payload_vec);
+        let payload_ = SubackPayload::unvalue(payload_vec.clone(), &mut readed);
+        assert_eq!(payload.qos, payload_.qos);
+        assert_eq!(readed, payload_vec.len());
+    }
+
+    #[test]
+    fn suscribe_payload_test() {
+        let topic1 = "topic1";
+        let topic2 = "topic2";
+        let payload = SuscribePayload {
+            topic_filter: vec![String::from(topic1), String::from(topic2)],
+            qos: vec![0, 1],
+        };
+        let value = payload.value();
+        println!("value: {:?}", value);
+        assert_eq!(value.len(), topic1.len() + topic2.len() + 4 + 2); // 4 bytes for topic_filter length and 2 bytes for qos
+        assert_eq!((value[0] + value[1]) as u8, topic1.len() as u8);
+        assert_eq!(
+            String::from_utf8(value[2..(2 + topic1.len() as usize)].to_vec())
+                .unwrap_or_else(|_| String::from("")),
+            String::from(topic1)
+        );
+        assert_eq!(value[2 + topic1.len() as usize], 0); // qos topic1 is 0
+        let topic2_len = (value[3 + topic1.len() as usize] + value[4 + topic1.len() as usize]) as u8;
+        assert_eq!(
+            topic2_len as u8, topic2.len() as u8
+        );
+        assert_eq!(
+            String::from_utf8(value[5 + topic1.len() as usize..(5 + topic1.len() as usize + topic2_len as usize)].to_vec())
+                .unwrap_or_else(|_| String::from("")),
+            String::from(topic2)
+        );
+        assert_eq!(value[5 + topic1.len() as usize + topic2_len as usize], 1); // qos topic2 is 1
+        let readed = &mut 0;
+        let payload_ = SuscribePayload::unvalue(value, readed);
+        println!("payload: {:?}", payload_);
+        assert!(payload.topic_filter == payload_.topic_filter);
+        assert!(payload.qos == payload_.qos);
+    }
 
     #[test]
     fn payload_unpopulated_unvalue() {
