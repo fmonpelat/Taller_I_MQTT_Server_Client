@@ -21,8 +21,11 @@ pub struct Client {
   server_port: String,
   tx: Arc<Mutex<Sender<Vec<u8>>>>,
   rx: Arc<Mutex<Receiver<Vec<u8>>>>,
-  is_connect: bool,
   id_client: String,
+}
+
+pub struct ClientConnect{
+  pub is_connect: bool,
 }
 
 impl Client {
@@ -41,19 +44,17 @@ impl Client {
       server_port,
       tx,
       rx,
-      is_connect: false,
       id_client,
     }
   }
 
 
   pub fn publish(&self, _topic: String, _payload: String) {
-    let Self { server_host: _, server_port: _, tx, rx: _ , is_connect: _ , id_client: _} = self;
+    let Self { server_host: _, server_port: _, tx, rx: _ , id_client: _} = self;
     let msg = vec![0x30];
 
     let packet = Packet::<VariableHeader, Payload>::new();
     //let packet = packet.publish(dup, qos, retain, topic_name, payload);
-
 
     if validate_msg(msg.clone()) {
       tx.lock().unwrap()
@@ -64,7 +65,7 @@ impl Client {
 
     fn validate_msg(msg: Vec<u8>) -> bool {
       let byte = msg[0];
-      byte & 0xF == 0x10
+      byte & 0xF0 == 0x10
     }
   }
 
@@ -78,23 +79,19 @@ impl Client {
     }
 
     fn validate_msg(msg: Vec<u8>) -> bool {
-      let byte = msg[0];
-      byte & 0xF == 0x10
+      let byte = msg[1];
+      byte & 0xF0 == 0x10
     }
   }
 
-  pub fn is_connect(&self) -> bool{
-    self.is_connect
-  }
-
-  pub fn connect(&self) {
+  pub fn connect(& self) -> ClientConnect {
     // let Self {
     //   server_host,
     //   server_port,
     //   tx: _,
     //   rx,
     // } = self;
-
+    let mut is_connect = true;
     match TcpStream::connect(self.server_host.to_string() + ":" + &self.server_port) {
       Ok(mut stream) => {
         println!("Successfully connected to server in port {}", self.server_port);
@@ -106,7 +103,6 @@ impl Client {
         let _stream = Arc::clone(&stream_arc);
 
         let rx = self.rx.clone();
-        let mut is_connect = self.is_connect.clone();
         let _handle_write = thread::Builder::new().name("Thread: write to stream".to_string())
         .spawn( move || 
           loop {
@@ -159,7 +155,7 @@ impl Client {
           println!("Failed to connect: {}", e);
       }
     };
-    
+    ClientConnect{is_connect: is_connect}  
   }
 
   pub fn get_id_client(&self) -> String {

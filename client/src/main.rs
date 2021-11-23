@@ -10,10 +10,8 @@ fn main() {
     let client = Client::new(String::from("localhost"),String::from("3333"));
 
     println!("MQTT Client V1.0\n");
-    client.connect();
-    
-    client.publish(String::from("test"),String::from("test"));
-
+    //client.connect();
+    let mut is_connect = true;
     loop {
         // read from stdin and send to server
         //let mut input = String::new();
@@ -25,10 +23,10 @@ fn main() {
 
         let packet: Packet::<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();         
         let user_input = user_input();
-
+        
         match user_input[0].to_lowercase().as_ref() {
             "connect" => {
-                client.connect();
+                is_connect = client.connect().is_connect;
                 let packet = packet.connect(client.get_id_client());
                 client.send(packet.value());
                 println!("send connect");
@@ -77,14 +75,14 @@ fn main() {
                 }
 
                 let packet = packet.publish(dup,qos,retain,topic_name,message);
-                if client.is_connect() {
+                if is_connect {
                     client.send(packet.value());
                     println!("send publish");
                 }
             },
             "pingreq" => {
                 // send publish
-                if client.is_connect(){
+                if is_connect {
                     let packet = packet.pingresp();
                 
                     client.send(packet.value());
