@@ -140,7 +140,10 @@ impl Client {
                 let packet = packet.connect(self.client_identifier.clone());
                 let msg: Vec<u8> = packet.value();
 
-                stream.write_all(&(msg)).unwrap();
+                match stream.write_all(&(msg)) {
+                  Ok(v) => v,
+                  Err(_) => println!("Can't write message. "),
+              }
 
                 let stream_arc = Arc::new(Mutex::new(stream));
                 let _stream = Arc::clone(&stream_arc);
@@ -184,6 +187,7 @@ impl Client {
             .name("Thread: write to stream".to_string())
             .spawn(move || loop {
                 let guard = rx.lock().unwrap();
+                
                 match guard.recv() {
                     Ok(msg) => {
                         println!("Thread client write got a msg: {:?}", msg);
