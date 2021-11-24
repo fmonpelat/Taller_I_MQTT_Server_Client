@@ -41,7 +41,7 @@ impl Server {
     }
   }
 
-  fn handle_client(peer: String, mut stream: TcpStream, logger: Arc<Logger>, hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>) -> Result<JoinHandle<()>> {
+  fn handle_client(peer: String, stream: TcpStream, logger: Arc<Logger>, hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>) -> Result<JoinHandle<()>> {
     
     fn _handle_client_(mut stream: TcpStream, logger: Arc<Logger>, hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>) -> Result<()> {
       let mut buff = [0_u8; 1024];
@@ -195,14 +195,14 @@ impl Server {
     Ok(hash.contains_key(&stream.peer_addr()?))
   }
 
-  fn get_hash_server_connections( &self ,stream: &mut TcpStream ) -> Result<bool>{
-    let hash =  self.hash_server_connections.lock().unwrap();
+  fn _get_hash_server_connections( stream: &mut TcpStream, hash_server_connections:Arc<Mutex<HashServerConnections>> ) -> Result<bool>{
+    let hash =  hash_server_connections.lock().unwrap();
     println!("contains key result: {:?}", hash.contains_key(&stream.peer_addr()?));
     Ok(hash.contains_key(&stream.peer_addr()?))
   }
 
-  fn get_hashTopics( &self , topic: &String ) -> Result<bool>{
-    let hash =  self.hash_topics.lock().unwrap();
+  fn _get_hash_topics( topic: &String,hash_topics: Arc<Mutex<HashTopics>> ) -> Result<bool>{
+    let hash =  hash_topics.lock().unwrap();
     println!("contains key result: {:?}", hash.contains_key(topic));
     Ok(hash.contains_key(topic))
   }

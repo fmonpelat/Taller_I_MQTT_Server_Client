@@ -3,11 +3,13 @@ use header_packet::{control_flags, control_type, control_type_vec, Header, Packe
 pub mod variable_header_packet;
 use variable_header_packet::{
     connect_flags, PacketVariableHeader, PacketVariableHeaderConnack, PacketVariableHeaderPublish,
-    PacketVariableHeaderPublishAck, VariableHeader, VariableHeaderConnack, VariableHeaderPublish,
+    PacketVariableHeaderPacketIdentifier, VariableHeader, VariableHeaderConnack, VariableHeaderPublish,
+    VariableHeaderPacketIdentifier
 };
-pub mod payload_packet;
-use crate::mqtt_packet_service::variable_header_packet::VariableHeaderPublishAck;
-use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload};
+mod payload_packet;
+use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload, SuscribePayload, PacketPayloadSuscribe, suback_return_codes, PacketSubackPayload};
+
+use self::payload_packet::SubackPayload;
 
 /// Implementation of the MQTT packet service.
 /// This service is used to create and parse MQTT packets
@@ -178,14 +180,14 @@ impl Packet<VariableHeaderConnack, Payload> {
     }
 }
 
-impl Packet<VariableHeaderPublishAck, Payload> {
+impl Packet<VariableHeaderPacketIdentifier, Payload> {
     /// Creates a new Packet<VariableHeaderPublishAck, Payload>
     #[allow(dead_code)]
-    pub fn new() -> Packet<VariableHeaderPublishAck, Payload> {
+    pub fn new() -> Packet<VariableHeaderPacketIdentifier, Payload> {
         Packet {
             header: Header::default(),
             has_variable_header: false,
-            variable_header: VariableHeaderPublishAck::default(),
+            variable_header: VariableHeaderPacketIdentifier::default(),
             has_payload: false,
             payload: Payload::default(),
         }
@@ -193,15 +195,15 @@ impl Packet<VariableHeaderPublishAck, Payload> {
 
     /// Deserializes a Packet<VariableHeaderPublishAck, Payload>
     #[allow(dead_code)]
-    fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPublishAck, Payload> {
+    fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, Payload> {
         let mut absolute_index: usize = 0;
         let mut readed: usize = 0;
         let header = Header::unvalue(x.clone(), &mut readed);
         absolute_index += readed;
 
         let variable_header =
-            VariableHeaderPublishAck::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
-        Packet::<VariableHeaderPublishAck, Payload> {
+        VariableHeaderPacketIdentifier::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
+        Packet::<VariableHeaderPacketIdentifier, Payload> {
             header,
             has_variable_header: true,
             variable_header,
@@ -337,8 +339,166 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
         }
     }
 }
-// general implementation for all packets
 
+
+impl Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
+    /// Creates a new Packet<VariableHeaderPacketIdentifier, SuscribePayload>
+    #[allow(dead_code)]
+    pub fn new() -> Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
+        Packet {
+            header: Header::default(),
+            has_variable_header: true,
+            variable_header: VariableHeaderPacketIdentifier::default(),
+            has_payload: true,
+            payload: SuscribePayload::default(),
+        }
+    }
+
+    /// Serializes a Packet<VariableHeaderPacketIdentifier, SuscribePayload>
+    #[allow(dead_code)]
+    pub fn value(&self) -> Vec<u8> {
+        let mut res: Vec<u8> = Vec::with_capacity(3072); // max 3KB packet
+        let variable_header = if self.has_variable_header {
+            self.variable_header.value()
+        } else {
+            Vec::new()
+        };
+        let payload = if self.has_payload {
+            self.payload.value()
+        } else {
+            Vec::new()
+        };
+
+        let vec: Vec<u8> = self
+            .header
+            .value()
+            .iter()
+            .cloned()
+            .chain(
+                variable_header.iter().cloned().chain(
+                    payload.iter().cloned(),
+                ),
+            )
+            .collect();
+
+        for i in vec {
+            res.push(i);
+        }
+        res
+    }
+
+    /// Deserializes a Packet<VariableHeaderPacketIdentifier, SuscribePayload>
+    #[allow(dead_code)]
+    fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
+        let mut absolute_index: usize = 0;
+        let mut has_payload = false;
+        let mut has_variable_header = false;
+        let mut readed: usize = 0;
+        let header = Header::unvalue(x.clone(), &mut readed);
+        absolute_index += readed;
+
+        let variable_header =
+        VariableHeaderPacketIdentifier::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
+
+        if readed > 0 {
+            has_variable_header = true;
+        }
+        absolute_index += readed;
+
+        let payload = SuscribePayload::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
+        if readed > 0 {
+            has_payload = true;
+        }
+        Packet::<VariableHeaderPacketIdentifier, SuscribePayload> {
+            header,
+            has_variable_header,
+            variable_header,
+            has_payload,
+            payload,
+        }
+    }
+}
+
+
+impl Packet<VariableHeaderPacketIdentifier, SubackPayload> {
+    /// Creates a new Packet<VariableHeaderPacketIdentifier, SubackPayload>
+    #[allow(dead_code)]
+    pub fn new() -> Packet<VariableHeaderPacketIdentifier, SubackPayload> {
+        Packet {
+            header: Header::default(),
+            has_variable_header: true,
+            variable_header: VariableHeaderPacketIdentifier::default(),
+            has_payload: true,
+            payload: SubackPayload::default(),
+        }
+    }
+
+    /// Serializes a Packet<VariableHeaderPacketIdentifier, SubackPayload>
+    #[allow(dead_code)]
+    pub fn value(&self) -> Vec<u8> {
+        let mut res: Vec<u8> = Vec::with_capacity(3072); // max 3KB packet
+        let variable_header = if self.has_variable_header {
+            self.variable_header.value()
+        } else {
+            Vec::new()
+        };
+        let payload = if self.has_payload {
+            self.payload.value()
+        } else {
+            Vec::new()
+        };
+
+        let vec: Vec<u8> = self
+            .header
+            .value()
+            .iter()
+            .cloned()
+            .chain(
+                variable_header.iter().cloned().chain(
+                    payload.iter().cloned(),
+                ),
+            )
+            .collect();
+
+        for i in vec {
+            res.push(i);
+        }
+        res
+    }
+
+    /// Deserializes a Packet<VariableHeaderPacketIdentifier, SubackPayload>
+    #[allow(dead_code)]
+    fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, SubackPayload> {
+        let mut absolute_index: usize = 0;
+        let mut has_payload = false;
+        let mut has_variable_header = false;
+        let mut readed: usize = 0;
+        let header = Header::unvalue(x.clone(), &mut readed);
+        absolute_index += readed;
+
+        let variable_header =
+        VariableHeaderPacketIdentifier::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
+
+        if readed > 0 {
+            has_variable_header = true;
+        }
+        absolute_index += readed;
+
+        let payload = SubackPayload::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
+        if readed > 0 {
+            has_payload = true;
+        }
+        Packet::<VariableHeaderPacketIdentifier, SubackPayload> {
+            header,
+            has_variable_header,
+            variable_header,
+            has_payload,
+            payload,
+        }
+    }
+}
+
+// general implementation for all packets
 pub trait Utils {
     fn get_packet_length(vec: &[u8], readed: &mut usize) -> usize;
     fn is_mqtt_packet(vec: &[u8]) -> bool;
@@ -370,7 +530,7 @@ pub trait ClientPacket {
     fn connect(&self, client_identifier: String) -> Packet<VariableHeader, Payload>;
     fn disconnect(&self) -> Packet<VariableHeader, Payload>;
     fn pingreq(&self) -> Packet<VariableHeader, Payload>;
-    fn puback(&self, packet_identifier: u16) -> Packet<VariableHeaderPublishAck, Payload>;
+    fn puback(&self, packet_identifier: u16) -> Packet<VariableHeaderPacketIdentifier, Payload>;
     fn publish(
         &self,
         dup: u8,
@@ -380,6 +540,12 @@ pub trait ClientPacket {
         topic_name: String,
         message: String,
     ) -> Packet<VariableHeaderPublish, PublishPayload>;
+    fn suscribe(
+        &self,
+        packet_identifier: u16,
+        topic_names: Vec<String>,
+        qos: Vec<u8>,
+    ) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload>;
 }
 impl<T, P> ClientPacket for Packet<T, P> {
     /// Creates a Connect packet
@@ -452,15 +618,15 @@ impl<T, P> ClientPacket for Packet<T, P> {
     }
 
     /// Creates a PubAck packet
-    fn puback(&self, packet_identifier: u16) -> Packet<VariableHeaderPublishAck, Payload> {
+    fn puback(&self, packet_identifier: u16) -> Packet<VariableHeaderPacketIdentifier, Payload> {
         let header = Header {
             control_type: control_type::PUBACK,
             control_flags: control_flags::RESERVED,
             remaining_length_0: vec![2],
         };
-        let variable_header = VariableHeaderPublishAck { packet_identifier };
+        let variable_header = VariableHeaderPacketIdentifier { packet_identifier };
         // building the struct packet
-        Packet::<VariableHeaderPublishAck, Payload> {
+        Packet::<VariableHeaderPacketIdentifier, Payload> {
             header,
             has_variable_header: true,
             variable_header,
@@ -503,6 +669,36 @@ impl<T, P> ClientPacket for Packet<T, P> {
         packet.header.set_remaining_length(remaining_length);
         packet
     }
+
+    /// Creates a Subscribe packet
+    fn suscribe(
+        &self,
+        packet_identifier: u16,
+        topic_names: Vec<String>,
+        qos: Vec<u8>,
+    ) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
+        let mut header = Header {
+            control_type: control_type::SUBSCRIBE,
+            control_flags: control_flags::QOS1,
+            remaining_length_0: vec![0],
+        };
+        let variable_header = VariableHeaderPacketIdentifier { packet_identifier };
+        let payload = SuscribePayload {
+            topic_filter: topic_names,
+            qos,
+        };
+        header.set_remaining_length(
+            (variable_header.value().len() + payload.value().len()) as u32,
+        );
+        // building the struct packet
+        Packet::<VariableHeaderPacketIdentifier, SuscribePayload> {
+            header,
+            has_variable_header: true,
+            variable_header,
+            has_payload: true,
+            payload,
+        }
+    }
 }
 
 pub trait ServerPacket {
@@ -512,6 +708,7 @@ pub trait ServerPacket {
         connect_return: u8,
     ) -> Packet<VariableHeaderConnack, Payload>;
     fn pingresp(&self) -> Packet<VariableHeader, Payload>;
+    fn suback(&self, packet_identifier: u16, qos: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, SubackPayload>;
 }
 
 impl<T, P> ServerPacket for Packet<T, P> {
@@ -567,6 +764,35 @@ impl<T, P> ServerPacket for Packet<T, P> {
             payload: Payload::default(),
         }
     }
+
+    /// Creates a Suback packet
+    fn suback(
+        &self,
+        packet_identifier: u16,
+        qos: Vec<u8>,
+    ) -> Packet<VariableHeaderPacketIdentifier, SubackPayload> {
+        let mut header = Header {
+            control_type: control_type::SUBACK,
+            control_flags: control_flags::RESERVED,
+            remaining_length_0: vec![0],
+        };
+        let variable_header = VariableHeaderPacketIdentifier { packet_identifier };
+
+        let payload = SubackPayload {
+            qos,
+        };
+        header.set_remaining_length(
+            (variable_header.value().len() + payload.value().len()) as u32,
+        );
+        // building the struct packet
+        Packet::<VariableHeaderPacketIdentifier, SubackPayload> {
+            header,
+            has_variable_header: true,
+            variable_header,
+            has_payload: true,
+            payload,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -579,6 +805,59 @@ mod tests {
         };
 
         use super::*;
+
+        #[test]
+        fn check_suback_packet() {
+            let qos_stub = vec![suback_return_codes::SUCCESS_QOS0, suback_return_codes::SUCCESS_QOS1, suback_return_codes::FAILURE];
+            let packet = Packet::<VariableHeader, Payload>::new();
+            let packet = packet.suback(10,
+                qos_stub.clone()
+            );
+            assert_eq!(packet.header.control_type, control_type::SUBACK);
+            assert_eq!(packet.header.control_flags, control_flags::RESERVED);
+            assert_eq!(packet.header.remaining_length_0, vec![5]);
+            assert_eq!(packet.variable_header.packet_identifier, 10);
+            assert_eq!(packet.payload.qos, qos_stub);
+            let value = packet.value();
+            let unvalue = Packet::<VariableHeaderPacketIdentifier, SubackPayload>::unvalue(value);
+            assert_eq!(unvalue.header.control_type, control_type::SUBACK);
+            assert_eq!(unvalue.header.control_flags, control_flags::RESERVED);
+            assert_eq!(unvalue.header.remaining_length_0, vec![5]);
+            assert_eq!(unvalue.variable_header.packet_identifier, 10);
+            assert_eq!(unvalue.payload.qos, qos_stub);
+        }
+
+        #[test]
+        fn check_suscribe_packet() {
+            let packet = Packet::<VariableHeader,Payload>::new();
+            let packet = packet.suscribe(
+                10,
+                vec![String::from("topic1"), String::from("topic2")],
+                vec![0, 1],
+            );
+            let remaining_len:u8 = 20;
+            assert_eq!(packet.header.control_type, control_type::SUBSCRIBE);
+            assert_eq!(packet.header.control_flags, control_flags::QOS1);
+            assert_eq!(packet.header.remaining_length_0, [remaining_len]);
+            assert_eq!(packet.variable_header.packet_identifier, 10);
+            assert_eq!(packet.payload.topic_filter, vec![String::from("topic1"), String::from("topic2")]);
+            assert_eq!(packet.payload.qos, vec![0, 1]);
+
+            let value = packet.value();
+            // println!("{:?}", value);
+            assert_eq!(value[0], control_type::SUBSCRIBE + control_flags::QOS1);
+            assert_eq!(value[1], remaining_len);
+
+            let unvalue = Packet::<VariableHeaderPacketIdentifier, SuscribePayload>::unvalue(value);
+            // println!("{:?}", unvalue);
+            assert_eq!(unvalue.header.control_type, control_type::SUBSCRIBE);
+            assert_eq!(unvalue.header.control_flags, control_flags::QOS1);
+            assert_eq!(unvalue.header.remaining_length_0, [remaining_len]);
+            assert_eq!(unvalue.variable_header.packet_identifier, 10);
+            assert_eq!(unvalue.payload.topic_filter, vec![String::from("topic1"), String::from("topic2")]);
+            assert_eq!(unvalue.payload.qos, vec![0, 1]);
+        }
+
         #[test]
         fn check_pingresp_packet() {
             let packet = Packet::<VariableHeader, Payload>::new();
@@ -622,7 +901,7 @@ mod tests {
 
         #[test]
         fn check_packet_publishack() {
-            let packet = Packet::<VariableHeaderPublishAck, Payload>::new();
+            let packet = Packet::<VariableHeaderPacketIdentifier, Payload>::new();
             let packet = packet.puback(1);
             assert_eq!(packet.header.control_type, control_type::PUBACK);
             assert_eq!(packet.header.control_flags, control_flags::RESERVED);
@@ -630,7 +909,7 @@ mod tests {
             assert_eq!(packet.variable_header.packet_identifier, 1);
             let value = packet.value();
             assert_eq!(vec![64, 2, 0, 1], value);
-            let unvalue = Packet::<VariableHeaderPublishAck, Payload>::unvalue(value);
+            let unvalue = Packet::<VariableHeaderPacketIdentifier, Payload>::unvalue(value);
             assert_eq!(
                 packet.header.remaining_length_0,
                 unvalue.header.remaining_length_0
