@@ -62,17 +62,37 @@ fn main() {
                   if !client.is_connected() {
                     // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
                     client.connect(host,port,username,password);
-                    let packet = packet.connect(client.get_id_client());
+                      let client_identifier = client.get_id_client();
+                    println!("Connected to server with client id {}", client_identifier);
+                    let packet = packet.connect(client_identifier.clone());
                     client.send(packet.value());
                     println!("send connect");
-                    //TODO:  esperar 1 segundo o menos y luego revisar la variable is_connected e imprimir si esta conectado o no
+                    let mut i: usize = 0;
+                    let conn_retries = client.get_connect_retries();
+                    loop {
+                      if client.is_connected() { 
+                        println!("Connected to server with client id {}", client_identifier);
+                        break;
+                      }
+                      if i > conn_retries { 
+                        println!("Not connected to server");
+                        break;
+                      }
+                      i += 1;
+                      thread::sleep(time::Duration::from_millis(1000));
+                      println!("waiting for connection ... retries: {}/{}", i, conn_retries);
+                    }
                   } else {
                     println!("Already connected!");
                   }
                 },
                 "publish" => {
                     // send publish
-                    
+                    if !client.is_connected() {
+                      println!("Not connected to server, please connect first");
+                      continue;
+                    }
+
                     let dup_str: Option<String> = user_input.get(1).and_then(|v| {v.parse().ok()});
                     let qos_str: Option<String> = user_input.get(2).and_then(|v| {v.parse().ok()});
                     let retain_str: Option<String> = user_input.get(3).and_then(|v| {v.parse().ok()});
@@ -114,25 +134,28 @@ fn main() {
                     }
                     let packet_identifier = client.get_packet_identifier();
                     let packet = packet.publish(dup,qos,retain,packet_identifier,topic_name,message);
-                    if client.is_connected() {
-                        client.send(packet.value());
-                        println!("send publish");
-                    }
+                    client.send(packet.value());
+                    println!("send publish");
                 },
                 "pingreq" => {
                     // send publish
-                    if client.is_connected() {
-                        let packet = packet.pingresp();
-                    
-                        client.send(packet.value());
-                        println!("send pingreq");
+                    if !client.is_connected() {
+                      println!("Not connected to server, please connect first");
+                      continue;
                     }
+                    let packet = packet.pingresp();
+                    client.send(packet.value());
+                    println!("send pingreq");
                 },
-                "disconnect" =>{ //client.disconnect();
-                    break;
+                "disconnect" => {
+                  if !client.is_connected() {
+                    println!("Not connected to server, please connect first");
+                    continue;
+                  }
+                  client.disconnect();
                 },
                 "test" => {
-                  println!("test connect to localhost");
+                  println!("test connection to localhost");
                   if !client.is_connected() {
                     // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
                     client.connect(
@@ -160,7 +183,6 @@ fn main() {
                   } else {
                     println!("Already connected!");
                   }
-
                 },
                 "test-connection" => {
                   if client.is_connected() {
