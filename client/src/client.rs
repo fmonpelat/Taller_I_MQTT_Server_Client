@@ -29,6 +29,7 @@ pub struct Client {
   client_connection: sync::Arc<AtomicBool>,
   username: String,
   password: String,
+  connect_retries: usize,
 }
 
 impl Client {
@@ -44,6 +45,7 @@ impl Client {
         .collect();
     let mut rng = rand::thread_rng();
     let packet_identifier: u16 = rng.gen();
+    let connect_retries: usize = 10;
     Client{
       server_host: String::from(""),
       server_port: String::from(""),
@@ -54,7 +56,12 @@ impl Client {
       client_connection: sync::Arc::new(AtomicBool::new(false)),
       username: String::from(""),
       password: String::from(""),
+      connect_retries,
     }
+  }
+
+  pub fn get_connect_retries(&self) -> usize {
+    self.connect_retries.clone()
   }
 
   pub fn is_connected(&self) -> bool {
@@ -63,7 +70,7 @@ impl Client {
 
   pub fn publish(&self, _topic: String, _payload: String) {
     let Self { server_host: _, server_port: _, tx, rx: _ ,packet_identifier: _,client_identifier: _, client_connection: _,
-              username: _ ,password: _ } = self;
+              username: _ ,password: _ , connect_retries: _} = self;
     let msg = vec![0x30];
 
     let packet = Packet::<VariableHeader, Payload>::new();

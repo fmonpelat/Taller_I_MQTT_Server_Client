@@ -143,22 +143,31 @@ fn main() {
                     client.send(packet.value());
                     println!("send connect");
                     let mut i: usize = 0;
+                    let conn_retries = client.get_connect_retries();
                     loop {
                       if client.is_connected() { 
                         println!("Connected to server with client id {}", client_identifier);
                         break;
                       }
-                      if i > 10 { 
+                      if i > conn_retries { 
                         println!("Not connected to server");
                         break;
                       }
                       i += 1;
                       thread::sleep(time::Duration::from_millis(1000));
+                      println!("waiting for connection ... retries: {}/{}", i, conn_retries);
                     }
                   } else {
                     println!("Already connected!");
                   }
 
+                },
+                "test-connection" => {
+                  if client.is_connected() {
+                    println!("Connected to server with client id {}", client.get_id_client());
+                  } else {
+                    println!("Not connected to server");
+                  }
                 },
                 "exit" => {
                     break;
