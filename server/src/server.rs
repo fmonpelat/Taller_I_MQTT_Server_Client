@@ -1,5 +1,6 @@
 use crate::logger::{Logger, Logging};
 use core::time;
+use std::alloc::handle_alloc_error;
 use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
 use mqtt_packet::mqtt_packet_service::header_packet::control_type;
 use mqtt_packet::mqtt_packet_service::payload_packet::{
@@ -13,13 +14,13 @@ use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket, Utils
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Read, Result, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::thread::JoinHandle; //, channel};
+use std::thread::{self, Thread};
+use std::thread::JoinHandle;
 
-type HashPersistanceConnections = HashMap<SocketAddr, (Sender<String>, Receiver<String>)>; //ver ip addres para u8
-type HashServerConnections = HashMap<SocketAddr, Sender<SocketAddr>>;
+type HashPersistanceConnections = HashMap<SocketAddr, JoinHandle<()>>; //ver ip addres para u8
+type HashServerConnections = HashMap<SocketAddr, ServerConnections>;
 type HashTopics = HashMap<String, Vec<Sender<String>>>;
 #[derive(Clone)]
 pub struct Server {
@@ -30,12 +31,18 @@ pub struct Server {
     hash_server_connections: Arc<Mutex<HashServerConnections>>,
     hash_topics: Arc<Mutex<HashTopics>>,
 }
+#[derive(Clone)]
+pub struct ServerConnections{
+    tx: Arc<Mutex<Sender<String>>>,
+    rx: Arc<Mutex<Receiver<String>>>,
+    peer: Arc<Mutex<String>>,
+}
 
 #[allow(clippy::unit_arg)]
 impl Server {
     pub fn new(server_address: String, server_port: String, file_source: &str) -> Server {
         let hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>> =
-            Arc::new(Mutex::new(HashMap::new()));
+        Arc::new(Mutex::new(HashMap::new()));
         let hash_server_connections: Arc<Mutex<HashServerConnections>> =
             Arc::new(Mutex::new(HashMap::new()));
         let hash_topics: Arc<Mutex<HashTopics>> = Arc::new(Mutex::new(HashMap::new()));
@@ -53,12 +60,13 @@ impl Server {
         peer: String,
         stream: TcpStream,
         logger: Arc<Logger>,
-        hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
+        hash_server_connections: Arc<Mutex<HashServerConnections>>,
     ) -> Result<JoinHandle<()>> {
         fn _handle_client_(
             mut stream: TcpStream,
             logger: Arc<Logger>,
-            hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
+            hash_server_connections: Arc<Mutex<HashServerConnections>>,
+             server_connections: ServerConnections
         ) -> Result<()> {
             let mut buff = [0_u8; 1024];
 
@@ -77,7 +85,8 @@ impl Server {
                                     buff.to_vec(),
                                     &mut stream,
                                     &logger,
-                                    hash_persistance_connections.clone(),
+                                    &hash_server_connections,
+                                    &server_connections,
                                 ) {
                                     Ok(_) => {
                                         logger.debug(format!(
@@ -112,15 +121,25 @@ impl Server {
                         break;
                     }
                 }
+            
+              // TODO, read rx channel and write to stream   
             })
         }
+        
+        let (tx, rx) = channel::<String>();
+
+        let server_connections = ServerConnections{
+          tx: Arc::new(Mutex::new(tx)),
+          rx: Arc::new(Mutex::new(rx)),
+          peer: Arc::new(Mutex::new(peer.to_string())),
+        };
 
         let handle = thread::Builder::new()
             .name("thread peer: ".to_string() + peer.to_string().as_str())
             .spawn(move || {
                 // connection succeeded
                 println!("Connection from {}", peer);
-                match _handle_client_(stream, logger, hash_persistance_connections) {
+                match _handle_client_(stream, logger, hash_server_connections, server_connections) {
                     Ok(_) => {
                         println!("Connection with {} closed", peer);
                     }
@@ -156,14 +175,15 @@ impl Server {
                     let peer = stream.peer_addr()?;
                     let this = server_mutex.lock().unwrap();
                     let logger = this.logger.clone();
-                    let _persistance_connections = Arc::clone(&this.hash_persistance_connections);
+                    let _server_connections = Arc::clone(&this.hash_server_connections);
                     logger.info(format!("New client connected: {}", peer));
                     let _handle = Server::handle_client(
                         peer.to_string(),
                         stream,
                         logger,
-                        _persistance_connections,
+                        _server_connections,
                     );
+                    self.hash_persistance_connections.lock().unwrap().insert(peer, _handle.unwrap());
                 }
                 Err(e) => {
                     /* connection failed */
@@ -186,13 +206,14 @@ impl Server {
         buff: Vec<u8>,
         stream: &mut TcpStream,
         logger: &Arc<Logger>,
-        hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
+        hash_server_connections: &Arc<Mutex<HashServerConnections>>,
+        server_connections: &ServerConnections
     ) -> Result<&'static str> {
         let packet_id = buff[0] & 0xF0;
         let peer_addr = stream.peer_addr()?;
 
         if (packet_id == control_type::CONNECT)
-            && Server::get_id_persistance_connections(peer_addr, hash_persistance_connections)?
+            && Server::get_id_server_connections(peer_addr, hash_server_connections)?
         {
             logger.debug("Client already connected".to_string());
             return Err(Error::new(
@@ -209,11 +230,11 @@ impl Server {
                     peer_addr, packet_id
                 ));
 
-                //let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(buff);
-                //let _client_identifier: String = unvalued_packet.payload.client_identifier;
+                let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(buff);
+                let _client_identifier: String = unvalued_packet.payload.client_identifier;
 
                 //TODO ADD PEER ID AND TX TO HASH
-                //hash_server_connections.insert( &stream.peer_addr()?, tx );
+                hash_server_connections.lock().unwrap().insert( peer_addr.clone(), server_connections.clone() );
                 let packet = Packet::<VariableHeader, Payload>::new();
                 let packet =
                     packet.connack(connect_ack_flags::SESSION_PRESENT, connect_return::ACCEPTED);
@@ -295,17 +316,17 @@ impl Server {
         *copy_buff
     }
 
-    fn get_id_persistance_connections(
-        peer_addr: SocketAddr,
-        hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
-    ) -> Result<bool> {
-        let hash = hash_persistance_connections.lock().unwrap();
-        Ok(hash.contains_key(&peer_addr))
-    }
+    //fn get_id_persistance_connections(
+    //    peer_addr: SocketAddr,
+    //    hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
+    //) -> Result<bool> {
+    //    let hash = hash_persistance_connections.lock().unwrap();
+    //    Ok(hash.contains_key(&peer_addr))
+    //}
 
-    fn _get_hash_server_connections(
+    fn get_id_server_connections(
         peer_addr: SocketAddr,
-        hash_server_connections: Arc<Mutex<HashServerConnections>>,
+        hash_server_connections: &Arc<Mutex<HashServerConnections>>,
     ) -> Result<bool> {
         let hash = hash_server_connections.lock().unwrap();
         Ok(hash.contains_key(&peer_addr))
