@@ -4,6 +4,7 @@ use std::io::{ Read, Write };
 use std::sync::{ Arc, Mutex };
 use std::iter;
 extern crate rand;
+use mqtt_packet::mqtt_packet_service::header_packet::control_type;
 use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
 
@@ -168,11 +169,16 @@ impl Client {
                   println!("Thread client read got a msg: {:?}", buff);
                   println!("[client] buff:{:?}", buff);
                   match buff[0] {
-                    0x20 => {
+                    control_type::CONNACK => {
                       println!("Connack received!");
-                      client_connection.store(true, Ordering::SeqCst);
                     },
-                      _ => println!("Unexpected reply: {:?}\n", buff),
+                    control_type::PUBACK => {
+                      println!("Puback received!");
+                    },
+                    control_type::SUBACK => {
+                      println!("Suback received!");
+                    },
+                     _ => println!("Unexpected reply: {:?}\n", buff),
                     }
                 }  
               }
