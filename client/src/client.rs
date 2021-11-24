@@ -2,14 +2,21 @@ use core::time;
 use std::net::{ TcpStream };
 use std::io::{ Read, Write };
 use std::sync::{ Arc, Mutex };
+use std::iter;
+extern crate rand;
+use mqtt_packet::mqtt_packet_service::header_packet::control_type;
+use rand::{Rng, thread_rng};
+use rand::distributions::Alphanumeric;
 
-use std::thread;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
-use mqtt_packet::mqtt_packet_service::{Packet, Utils, ClientPacket};
-use mqtt_packet::mqtt_packet_service::header_packet::{control_type};
-use mqtt_packet::mqtt_packet_service::payload_packet::Payload;
+
+use std::{sync, thread};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use mqtt_packet::mqtt_packet_service::{Packet, ClientPacket};
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader};
+use mqtt_packet::mqtt_packet_service::payload_packet::{Payload};
 
 #[allow(dead_code)]
 pub struct Client {
@@ -17,33 +24,82 @@ pub struct Client {
   server_port: String,
   tx: Arc<Mutex<Sender<Vec<u8>>>>,
   rx: Arc<Mutex<Receiver<Vec<u8>>>>,
-  client_id: String,
+  packet_identifier: u16,
+  id_client: String,
+  client_connection: sync::Arc<AtomicBool>,
+  username: String,
+  password: String,
 }
 
 impl Client {
-  pub fn new(server_host: String, server_port:  String ) -> Client {
+  pub fn new() -> Client {
     let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = channel();
     let rx = Arc::new(Mutex::new(rx));
     let tx = Arc::new(Mutex::new(tx));
-    let client_id = String::from("test_id");
+    let mut rng = thread_rng();
+    let id_client: String = iter::repeat(())
+        .map(|()| rng.sample(Alphanumeric))
+        .map(char::from)
+        .take(10)
+        .collect();
+    let packet_identifier: u16 = 0;
     Client{
-      server_host,
-      server_port,
+      server_host: String::from(""),
+      server_port: String::from(""),
       tx,
       rx,
-      client_id,
+      packet_identifier,
+      id_client,
+      client_connection: sync::Arc::new(AtomicBool::new(false)),
+      username: String::from(""),
+      password: String::from(""),
     }
   }
 
-  pub fn publish(&self, _topic: String, _payload: String) {
-    let Self { server_host: _, server_port: _, tx, rx: _, client_id:_ } = self;
-    let msg = vec![0x30];
-
-    tx.lock().unwrap()
-    .send(msg).unwrap();
+  pub fn is_connected(&self) -> bool {
+    self.client_connection.load(Ordering::SeqCst).clone()
   }
 
-  pub fn connect(&self) {
+  pub fn publish(&self, _topic: String, _payload: String) {
+    let Self { server_host: _, server_port: _, tx, rx: _ ,packet_identifier: _,id_client: _, client_connection: _,
+              username: _ ,password: _ } = self;
+    let msg = vec![0x30];
+
+    let packet = Packet::<VariableHeader, Payload>::new();
+
+    if validate_msg(msg.clone()) {
+      tx.lock().unwrap()
+      .send(msg).unwrap();
+    } else {
+      println!("can't send message: {:?}", msg);
+    }
+
+    fn validate_msg(msg: Vec<u8>) -> bool {
+      let byte = msg[0];
+      byte & 0xF0 == 0x10
+    }
+  }
+
+  pub fn send(&self, value:Vec<u8>){
+    
+    if validate_msg(value.clone()) {
+      self.tx.lock().unwrap()
+      .send(value).unwrap();
+    } else {
+      println!("can't send message: {:?}", value);
+    }
+
+    fn validate_msg(msg: Vec<u8>) -> bool {
+      let byte = msg[1];
+      byte & 0xF0 == 0x10
+    }
+  }
+
+  pub fn get_packet_identifier(&self) -> u16 {
+    self.packet_identifier.clone()
+  }
+
+  pub fn connect(& mut self,host: String,port: String,username: String,password: String) -> () {
     // let Self {
     //   server_host,
     //   server_port,
@@ -51,12 +107,16 @@ impl Client {
     //   rx,
     // } = self;
 
+    self.server_host = host;
+    self.server_port = port;
+    self.username = username;
+    self.password = password;
     match TcpStream::connect(self.server_host.to_string() + ":" + &self.server_port) {
       Ok(mut stream) => {
         println!("Successfully connected to server in port {}", self.server_port);
 
         let packet = Packet::<VariableHeader, Payload>::new();
-        let packet = packet.connect(self.client_id.clone());
+        let packet = packet.connect(self.id_client.clone());
         let msg: Vec<u8> = packet.value(); 
 
         stream.write_all(&(msg)).unwrap();
@@ -76,7 +136,6 @@ impl Client {
                     stream_arc.lock().unwrap().write_all(&msg).unwrap(); 
                     // Drop the `MutexGuard` to allow other threads to make use of rx
                     drop(guard);
-
                     thread::sleep(Duration::from_millis(50));
                 },
                 Err(e) => {
@@ -89,18 +148,37 @@ impl Client {
           }
         );
         
-        let _handle_read = thread::Builder::new().name("Thread: read from stream".to_string())
+        Client::handle_read(_stream, self.client_connection.clone());
+        
+        // let _res = handle_read.join();
+      },
+      Err(e) => {
+          println!("Failed to connect: {}", e);
+      }
+    };
+  }
+  
+  pub fn handle_read(stream: Arc<Mutex<TcpStream>>, client_connection: sync::Arc<AtomicBool>) {
+    let _handle_read = thread::Builder::new().name("Thread: read from stream".to_string())
         .spawn(move || loop {
             let mut buff: Vec<u8> = Vec::with_capacity(1024); 
 
-            match _stream.lock().unwrap().read_exact(&mut buff) {
+            match stream.lock().unwrap().read_exact(&mut buff) {
               Ok(_) => {
                 if !buff.is_empty() {
                   println!("Thread client read got a msg: {:?}", buff);
                   println!("[client] buff:{:?}", buff);
                   match buff[0] {
-                    0x20 => {println!("Connack received!") },
-                      _ => println!("Unexpected reply: {:?}\n", buff),
+                    control_type::CONNACK => {
+                      println!("Connack received!");
+                    },
+                    control_type::PUBACK => {
+                      println!("Puback received!");
+                    },
+                    control_type::SUBACK => {
+                      println!("Suback received!");
+                    },
+                     _ => println!("Unexpected reply: {:?}\n", buff),
                     }
                 }  
               }
@@ -110,13 +188,10 @@ impl Client {
             }
             thread::sleep(time::Duration::from_millis(60));
         });
-        // let _res = handle_read.join();
-      },
-      Err(e) => {
-          println!("Failed to connect: {}", e);
-      }
-    };
-    
+      
   }
 
+  pub fn get_id_client(&self) -> String {
+    self.id_client.clone()
+  }
 }

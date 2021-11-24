@@ -6,7 +6,7 @@ use variable_header_packet::{
     PacketVariableHeaderPacketIdentifier, VariableHeader, VariableHeaderConnack, VariableHeaderPublish,
     VariableHeaderPacketIdentifier
 };
-mod payload_packet;
+pub mod payload_packet;
 use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload, SuscribePayload, PacketPayloadSuscribe, suback_return_codes, PacketSubackPayload};
 
 use self::payload_packet::SubackPayload;
@@ -16,11 +16,11 @@ use self::payload_packet::SubackPayload;
 
 #[derive(Debug, Default)]
 pub struct Packet<T, P> {
-    header: Header,
-    has_variable_header: bool,
-    variable_header: T,
-    has_payload: bool,
-    payload: P,
+    pub header: Header,
+    pub has_variable_header: bool,
+    pub variable_header: T,
+    pub has_payload: bool,
+    pub payload: P,
 }
 
 // specific implementations for each packet type
@@ -195,7 +195,7 @@ impl Packet<VariableHeaderPacketIdentifier, Payload> {
 
     /// Deserializes a Packet<VariableHeaderPublishAck, Payload>
     #[allow(dead_code)]
-    fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, Payload> {
+    pub fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, Payload> {
         let mut absolute_index: usize = 0;
         let mut readed: usize = 0;
         let header = Header::unvalue(x.clone(), &mut readed);
@@ -310,7 +310,7 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
 
     /// Deserializes a Packet<VariableHeaderPublish, Payload>
     #[allow(dead_code)]
-    fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPublish, PublishPayload> {
+    pub fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPublish, PublishPayload> {
         let mut absolute_index: usize = 0;
         let mut has_payload = false;
         let mut has_variable_header = false;
