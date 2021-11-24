@@ -7,7 +7,7 @@ use variable_header_packet::{
     VariableHeaderPacketIdentifier
 };
 pub mod payload_packet;
-use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload, SuscribePayload, PacketPayloadSuscribe, suback_return_codes, PacketSubackPayload};
+use payload_packet::{PacketPayload, PacketPublishPayload, Payload, PublishPayload, SuscribePayload, PacketPayloadSuscribe, PacketSubackPayload};
 
 use self::payload_packet::SubackPayload;
 
@@ -805,6 +805,7 @@ mod tests {
         };
 
         use super::*;
+        use payload_packet::{suback_return_codes};
 
         #[test]
         fn check_suback_packet() {

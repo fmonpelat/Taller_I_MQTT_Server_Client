@@ -8,9 +8,10 @@ use std::io::{Result,Error};
 pub struct Logger {
     file: Arc<Mutex<BufWriter<File>>>,
     _file_source: String,
+    debug: bool,
 }
 pub trait Logging {
-    fn new(file_source:&str) -> Self;
+    fn new(file_source:&str, debug: bool) -> Self;
     fn log(&self, msg: String) -> Result<&'static str> ;
     fn debug(&self, message: String) -> Option<&str> ;
     fn error(&self, message: String)-> Option<&str> ;
@@ -18,7 +19,7 @@ pub trait Logging {
 }
 
 impl Logging for Logger{
-    fn new(file_source:&str) -> Logger {
+    fn new(file_source:&str, debug: bool) -> Logger {
         let file = match OpenOptions::new()
                 .read(false)
                 .append(true)
@@ -29,7 +30,7 @@ impl Logging for Logger{
                 Err(_file) => panic!("Unable to open log file "),
                 Ok(file) => file,
             };
-           Logger { file: Arc::new(Mutex::new(BufWriter::new(file))), _file_source: file_source.to_owned() }
+           Logger { file: Arc::new(Mutex::new(BufWriter::new(file))), _file_source: file_source.to_owned(), debug }
     }
 
     fn log(&self, message: String) -> Result<&'static str> {
@@ -44,6 +45,9 @@ impl Logging for Logger{
             Ok(mut file) => {
                 file.write_all(format!("{} {}\n", timestamp_str.as_secs(), message).as_bytes())?;
                 file.flush()?;
+                if self.debug {
+                    println!("{} {}", timestamp_str.as_secs(), message);
+                }
                 Ok("return to log")   
             }
             Err(_) => Err(Error::new(ErrorKind::Other, "Error logging")),
