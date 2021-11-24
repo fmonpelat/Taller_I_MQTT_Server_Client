@@ -35,28 +35,28 @@ fn main() {
 
                     match host_str {
                         Some(_) => {
-                            host = user_input[1].trim().parse().expect("wrong value!");
+                            host = parser_str(user_input[1].to_string());
                         }
                         None => println!("non-existent host value"),
                     }
 
                     match port_str {
                         Some(_) => {
-                            port = user_input[2].trim().parse().expect("wrong value!");
+                            port = parser_str(user_input[2].to_string());
                         }
                         None => println!("non-existent port value"),
                     }
 
                     match username_str {
                         Some(_) => {
-                            username = user_input[3].trim().parse().expect("wrong value!");
+                            username = parser_str(user_input[3].to_string());
                         }
                         None => println!("non-existent username value"),
                     }
 
                     match password_str {
                         Some(_) => {
-                            password = user_input[4].trim().parse().expect("wrong value!");
+                            password = parser_str(user_input[4].to_string());
                         }
                         None => println!("non-existent password value"),
                     }
@@ -141,11 +141,11 @@ fn main() {
                         }
                         None => println!("non-existent message value"),
                     }
+                    println!("try publish");
                     let packet_identifier = client.get_packet_identifier();
                     let packet =
                         packet.publish(dup, qos, retain, packet_identifier, topic_name, message);
                     client.send(packet.value());
-                    println!("send publish");
                 }
                 "pingreq" => {
                     // send publish
@@ -239,6 +239,16 @@ pub fn user_input() -> Vec<String> {
     // println!("{:?}",input_stdin);
     input_stdin
 }
+
+pub fn parser_str(value: String) -> String {
+    value.trim().parse().expect("wrong value!")
+}
+
+#[test]
+    fn test_parser(){
+        let vec = ["0","1","3"];
+        assert_eq!("0",parser_str(vec[0].to_string()))
+    }
 
 #[cfg(test)]
 mod tests {
