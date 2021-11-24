@@ -151,7 +151,6 @@ impl PacketVariableHeaderPacketIdentifier for VariableHeaderPacketIdentifier {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

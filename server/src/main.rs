@@ -8,9 +8,9 @@ fn main() -> Result<(), ()> {
     let file_name = "../log.txt";
     let logger = Logger::new(file_name, true);
 
-    let server= Server::new("0.0.0.0".to_owned(), "3333".to_owned(), file_name);
+    let server = Server::new("0.0.0.0".to_owned(), "3333".to_owned(), file_name);
 
-    match server.listening(){
+    match server.listening() {
         Ok(_) => {
             logger.info("Successfully listening to incoming clients.".to_string());
         }

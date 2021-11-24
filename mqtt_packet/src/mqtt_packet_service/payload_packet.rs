@@ -9,7 +9,6 @@ pub mod suback_return_codes {
     pub const SUCCESS_QOS1: u8 = 0x01;
     pub const SUCCESS_QOS2: u8 = 0x02;
     pub const FAILURE: u8 = 0x80;
-
 }
 
 /// Connect has the payload type Payload
@@ -229,7 +228,6 @@ impl PacketPublishPayload for PublishPayload {
     }
 }
 
-
 /// Suscribe has the payload type SuscribePayload
 #[derive(Debug, Default)]
 pub struct SuscribePayload {
@@ -254,10 +252,9 @@ impl PacketPayloadSuscribe for SuscribePayload {
         while index < x.len() {
             let topic_filter_len = x[index] as u16 + (x[index + 1] as u16);
             index += 2;
-            let topic_filter_ = String::from_utf8(
-                x[index..(index + topic_filter_len as usize)].to_vec(),
-            )
-            .unwrap_or_else(|_| String::from("")); // topic_filter default empty as error
+            let topic_filter_ =
+                String::from_utf8(x[index..(index + topic_filter_len as usize)].to_vec())
+                    .unwrap_or_else(|_| String::from("")); // topic_filter default empty as error
 
             index += topic_filter_len as usize; // index of the next topic_filter length
             topic_filter.push(topic_filter_);
@@ -266,31 +263,25 @@ impl PacketPayloadSuscribe for SuscribePayload {
             qos.push(qos_);
         }
         *readed = index;
-        SuscribePayload { 
-            topic_filter,
-            qos,
-         }
+        SuscribePayload { topic_filter, qos }
     }
 
     fn value(&self) -> Vec<u8> {
         let mut payload_vec: Vec<u8> = Vec::with_capacity(2048); // 2KB max payload
-        let mut i:usize = 0;
-        self.topic_filter
-            .iter()
-            .for_each(|x| {
-                let x_ = (x.len() as u16).to_be_bytes();
-                payload_vec.extend(x_.iter()); // extend payload_vec with topic_filter[i] length
-                payload_vec.extend(x.as_bytes()); // extend payload_vec with topic_filter[i]
-                payload_vec.push(self.qos[i] & 0x03); // extend payload_vec with qos[i] (ensuring that we use only the first 2 bits)
-                i += 1;
-            });
+        let mut i: usize = 0;
+        self.topic_filter.iter().for_each(|x| {
+            let x_ = (x.len() as u16).to_be_bytes();
+            payload_vec.extend(x_.iter()); // extend payload_vec with topic_filter[i] length
+            payload_vec.extend(x.as_bytes()); // extend payload_vec with topic_filter[i]
+            payload_vec.push(self.qos[i] & 0x03); // extend payload_vec with qos[i] (ensuring that we use only the first 2 bits)
+            i += 1;
+        });
         if payload_vec.is_empty() {
             return vec![];
         }
         payload_vec
     }
 }
-
 
 /// Suscribe has the payload type SuscribePayload
 #[derive(Debug, Default)]
@@ -309,27 +300,20 @@ impl PacketSubackPayload for SubackPayload {
             return SubackPayload::default();
         }
         *readed = x.len();
-        SubackPayload { 
-            qos: x,
-         }
+        SubackPayload { qos: x }
     }
 
     fn value(&self) -> Vec<u8> {
         let mut payload_vec: Vec<u8> = Vec::with_capacity(2048); // 2KB max payload
-        self.qos
-            .iter()
-            .for_each(|x| {
-                payload_vec.push(*x);
-            });
+        self.qos.iter().for_each(|x| {
+            payload_vec.push(*x);
+        });
         if payload_vec.is_empty() {
             return vec![];
         }
         payload_vec
     }
 }
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -340,7 +324,11 @@ mod tests {
     fn suback_payload_test() {
         let mut readed = 0;
         let payload = SubackPayload {
-            qos: vec![suback_return_codes::SUCCESS_QOS0, suback_return_codes::SUCCESS_QOS1, suback_return_codes::FAILURE],
+            qos: vec![
+                suback_return_codes::SUCCESS_QOS0,
+                suback_return_codes::SUCCESS_QOS1,
+                suback_return_codes::FAILURE,
+            ],
         };
         let payload_vec = payload.value();
         // println!("payload_vec: {:?}", payload_vec);
@@ -367,13 +355,15 @@ mod tests {
             String::from(topic1)
         );
         assert_eq!(value[2 + topic1.len() as usize], 0); // qos topic1 is 0
-        let topic2_len = (value[3 + topic1.len() as usize] + value[4 + topic1.len() as usize]) as u8;
+        let topic2_len =
+            (value[3 + topic1.len() as usize] + value[4 + topic1.len() as usize]) as u8;
+        assert_eq!(topic2_len as u8, topic2.len() as u8);
         assert_eq!(
-            topic2_len as u8, topic2.len() as u8
-        );
-        assert_eq!(
-            String::from_utf8(value[5 + topic1.len() as usize..(5 + topic1.len() as usize + topic2_len as usize)].to_vec())
-                .unwrap_or_else(|_| String::from("")),
+            String::from_utf8(
+                value[5 + topic1.len() as usize..(5 + topic1.len() as usize + topic2_len as usize)]
+                    .to_vec()
+            )
+            .unwrap_or_else(|_| String::from("")),
             String::from(topic2)
         );
         assert_eq!(value[5 + topic1.len() as usize + topic2_len as usize], 1); // qos topic2 is 1
