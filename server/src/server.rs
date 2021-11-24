@@ -5,10 +5,11 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::{thread};
 use crate::logger::{Logger, Logging};
-use mqtt_packet::mqtt_packet_service::{Packet, ServerPacket, Utils};
+use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
+use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket, Utils};
 use mqtt_packet::mqtt_packet_service::header_packet::{control_type};
-use mqtt_packet::mqtt_packet_service::payload_packet::Payload;
-use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader, connect_ack_flags, connect_return};
+use mqtt_packet::mqtt_packet_service::payload_packet::{Payload, PublishPayload, suback_return_codes};
+use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader, VariableHeaderPacketIdentifier, VariableHeaderPublish, connect_ack_flags, connect_return};
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};//, channel};
 
@@ -90,7 +91,6 @@ impl Server {
           .spawn( move || {
             // connection succeeded
             println!("Connection from {}", peer);
-            //let mut locked = clone_mutex.lock().unwrap();
             match _handle_client_(stream, logger, hash_persistance_connections) {
               Ok(_) => {
                   println!("Connection with {} closed", peer);
@@ -146,7 +146,9 @@ impl Server {
   fn handle_packet(buff: Vec<u8>, stream: &mut TcpStream, logger: &Arc<Logger>, hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>) -> Result<&'static str>{
 
     let packet_id = buff[0] & 0xF0;
-    if (packet_id == control_type::CONNECT) && Server::get_id_persistance_connections(stream, hash_persistance_connections)?{
+    let peer_addr = stream.peer_addr()?;
+
+    if (packet_id == control_type::CONNECT) && Server::get_id_persistance_connections(peer_addr, hash_persistance_connections)?{
       logger.debug("Client already connected".to_string());
       return Err(Error::new(ErrorKind::Other, "Error, client already connected"))
     }
@@ -154,10 +156,10 @@ impl Server {
     match packet_id {
       control_type::CONNECT  => {
         logger.info("Connect packet received".to_string());
-        logger.debug(format!("Peer mqtt connected: {}, with action type: {} ",stream.peer_addr()?,packet_id));
+        logger.debug(format!("Peer mqtt connected: {}, with action type: {} ",peer_addr,packet_id));
         
-        let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(buff);        
-        let _client_identifier: String = unvalued_packet.payload.client_identifier;
+        //let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(buff);        
+        //let _client_identifier: String = unvalued_packet.payload.client_identifier;
 
         //TODO ADD PEER ID AND TX TO HASH
         //hash_server_connections.insert( &stream.peer_addr()?, tx );
@@ -170,7 +172,40 @@ impl Server {
       },
       control_type::PUBLISH  => {
           logger.debug("Publish packet received".to_string());
-          logger.debug(format!("Peer mqtt publish: {:?}",stream.peer_addr()?));
+          logger.debug(format!("Peer mqtt publish: {:?}",peer_addr));
+
+          let unvalue = Packet::<VariableHeaderPublish, PublishPayload>::unvalue(buff);
+          if unvalue.header.control_flags == control_flags::QOS1{
+
+            logger.debug("Identified QoS1 flag. PubAck sent".to_string());
+            let packet = Packet::<VariableHeaderPacketIdentifier, Payload>::new();
+            let packet = packet.puback(packet_id.into());
+
+            if let Err(e) = stream.write_all(&packet.value()) {
+              logger.debug("Client disconnect".to_string());
+              return Err(Error::new(ErrorKind::Other, format!("Error: cannot write: {}",e)))
+            }
+          } else {
+            // TO DO investigate what kind of action need to take
+            logger.debug("Identified QoS0 flag. Nothing to do".to_string());
+          }
+      },
+      control_type::DISCONNECT  => {
+        // TO DO investigate what kind of action need to take
+        logger.debug("Disconnect packet received".to_string());
+        logger.debug(format!("Peer mqtt publish: {:?}",peer_addr));
+      },
+      control_type::SUBSCRIBE  => {
+        logger.debug("suscribe packet received".to_string());
+        logger.debug(format!("Peer mqtt publish: {:?}",peer_addr));
+        let qos_stub = vec![suback_return_codes::SUCCESS_QOS0, suback_return_codes::SUCCESS_QOS1, suback_return_codes::FAILURE];
+        let packet = Packet::<VariableHeader, Payload>::new();
+        let packet = packet.suback(packet_id.into(), qos_stub.clone());
+
+        if let Err(e) = stream.write_all(&packet.value()) {
+          logger.debug("Client disconnect".to_string());
+          return Err(Error::new(ErrorKind::Other, format!("Error: cannot write: {}",e)))
+        }
       },
       _ => {
         logger.debug("Id not match with any control packet".to_string());
@@ -189,21 +224,18 @@ impl Server {
   }
  
 
-  fn get_id_persistance_connections(stream: &mut TcpStream, hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>) -> Result<bool>{
+  fn get_id_persistance_connections(peer_addr: SocketAddr, hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>) -> Result<bool>{
     let hash =  hash_persistance_connections.lock().unwrap();
-    println!("contains key result: {:?}", hash.contains_key(&stream.peer_addr()?));
-    Ok(hash.contains_key(&stream.peer_addr()?))
+    Ok(hash.contains_key(&peer_addr))
   }
 
-  fn _get_hash_server_connections( stream: &mut TcpStream, hash_server_connections:Arc<Mutex<HashServerConnections>> ) -> Result<bool>{
+  fn _get_hash_server_connections( peer_addr: SocketAddr, hash_server_connections:Arc<Mutex<HashServerConnections>> ) -> Result<bool>{
     let hash =  hash_server_connections.lock().unwrap();
-    println!("contains key result: {:?}", hash.contains_key(&stream.peer_addr()?));
-    Ok(hash.contains_key(&stream.peer_addr()?))
+    Ok(hash.contains_key(&peer_addr))
   }
 
   fn _get_hash_topics( topic: &String,hash_topics: Arc<Mutex<HashTopics>> ) -> Result<bool>{
     let hash =  hash_topics.lock().unwrap();
-    println!("contains key result: {:?}", hash.contains_key(topic));
     Ok(hash.contains_key(topic))
   }
 
