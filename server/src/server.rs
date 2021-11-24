@@ -35,7 +35,7 @@ impl Server {
     Server{
       server_address: Arc::new(server_address),
       server_port: Arc::new(server_port),
-	    logger: Arc::new(Logger::new(file_source)),
+	    logger: Arc::new(Logger::new(file_source, true)),
       hash_persistance_connections,
       hash_server_connections,
       hash_topics
@@ -51,10 +51,10 @@ impl Server {
         match stream.read(&mut buff) {
           Ok(_size) => {
             if _size > 0 {
-              let packet_identifier = buff[0];
-              logger.debug(format!("Check if a MQTT PACKET is received: {:?}",packet_identifier));
+              let control_type = buff[0];
+              logger.debug(format!("Check if a MQTT PACKET is received: {:?}",control_type));
               if Packet::<VariableHeader, Payload>::is_mqtt_packet(&buff) {
-                logger.debug(format!("Found a MQTT packet: {:?}",packet_identifier));
+                logger.debug(format!("Found a MQTT packet: {:?}",control_type));
                 match Server::handle_packet(buff.to_vec(), & mut stream, &logger, hash_persistance_connections.clone()) {
                   Ok(_) => {
                     logger.debug(format!("Peer {} succefully connect with server",stream.peer_addr()?));
@@ -165,6 +165,7 @@ impl Server {
         //hash_server_connections.insert( &stream.peer_addr()?, tx );
         let packet = Packet::<VariableHeader, Payload>::new();
         let packet = packet.connack(connect_ack_flags::SESSION_PRESENT, connect_return::ACCEPTED);
+        logger.debug(format!("Sending connack packet"));
         if let Err(e) = stream.write_all(&packet.value()) {
           logger.debug("Client disconnect".to_string());
           return Err(Error::new(ErrorKind::Other, format!("Error: cannot write: {}",e)))

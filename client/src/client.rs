@@ -25,7 +25,7 @@ pub struct Client {
   tx: Arc<Mutex<Sender<Vec<u8>>>>,
   rx: Arc<Mutex<Receiver<Vec<u8>>>>,
   packet_identifier: u16,
-  id_client: String,
+  client_identifier: String,
   client_connection: sync::Arc<AtomicBool>,
   username: String,
   password: String,
@@ -37,19 +37,20 @@ impl Client {
     let rx = Arc::new(Mutex::new(rx));
     let tx = Arc::new(Mutex::new(tx));
     let mut rng = thread_rng();
-    let id_client: String = iter::repeat(())
+    let client_identifier: String = iter::repeat(())
         .map(|()| rng.sample(Alphanumeric))
         .map(char::from)
         .take(10)
         .collect();
-    let packet_identifier: u16 = 0;
+    let mut rng = rand::thread_rng();
+    let packet_identifier: u16 = rng.gen();
     Client{
       server_host: String::from(""),
       server_port: String::from(""),
       tx,
       rx,
       packet_identifier,
-      id_client,
+      client_identifier,
       client_connection: sync::Arc::new(AtomicBool::new(false)),
       username: String::from(""),
       password: String::from(""),
@@ -61,7 +62,7 @@ impl Client {
   }
 
   pub fn publish(&self, _topic: String, _payload: String) {
-    let Self { server_host: _, server_port: _, tx, rx: _ ,packet_identifier: _,id_client: _, client_connection: _,
+    let Self { server_host: _, server_port: _, tx, rx: _ ,packet_identifier: _,client_identifier: _, client_connection: _,
               username: _ ,password: _ } = self;
     let msg = vec![0x30];
 
@@ -116,7 +117,7 @@ impl Client {
         println!("Successfully connected to server in port {}", self.server_port);
 
         let packet = Packet::<VariableHeader, Payload>::new();
-        let packet = packet.connect(self.id_client.clone());
+        let packet = packet.connect(self.client_identifier.clone());
         let msg: Vec<u8> = packet.value(); 
 
         stream.write_all(&(msg)).unwrap();
@@ -136,7 +137,7 @@ impl Client {
                     stream_arc.lock().unwrap().write_all(&msg).unwrap(); 
                     // Drop the `MutexGuard` to allow other threads to make use of rx
                     drop(guard);
-                    thread::sleep(Duration::from_millis(50));
+                    //thread::sleep(Duration::from_millis(50));
                 },
                 Err(e) => {
                     println!("Thread client write got a error: {:?}", e);
@@ -144,10 +145,9 @@ impl Client {
                 }
             };
             // TODO: this sleep does not need to be here on production
-            thread::sleep(time::Duration::from_millis(30));
+            //thread::sleep(time::Duration::from_millis(30));
           }
         );
-        
         Client::handle_read(_stream, self.client_connection.clone());
         
         // let _res = handle_read.join();
@@ -161,15 +161,14 @@ impl Client {
   pub fn handle_read(stream: Arc<Mutex<TcpStream>>, client_connection: sync::Arc<AtomicBool>) {
     let _handle_read = thread::Builder::new().name("Thread: read from stream".to_string())
         .spawn(move || loop {
-            let mut buff: Vec<u8> = Vec::with_capacity(1024); 
+            let mut buff = [0_u8; 1024]; 
 
-            match stream.lock().unwrap().read_exact(&mut buff) {
+            match stream.lock().unwrap().read(&mut buff) {
               Ok(_) => {
                 if !buff.is_empty() {
-                  println!("Thread client read got a msg: {:?}", buff);
-                  println!("[client] buff:{:?}", buff);
                   match buff[0] {
                     control_type::CONNACK => {
+                      client_connection.store(true, Ordering::SeqCst);
                       println!("Connack received!");
                     },
                     control_type::PUBACK => {
@@ -186,12 +185,12 @@ impl Client {
                   println!("Failed to receive data: {}", e);
               }
             }
-            thread::sleep(time::Duration::from_millis(60));
+            //thread::sleep(time::Duration::from_millis(60));
         });
       
   }
 
   pub fn get_id_client(&self) -> String {
-    self.id_client.clone()
+    self.client_identifier.clone()
   }
 }
