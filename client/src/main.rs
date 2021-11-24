@@ -6,29 +6,61 @@ use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader};
 use mqtt_packet::mqtt_packet_service::payload_packet::{Payload};
 
 fn main() {
-    let client = Client::new();
+    let mut client = Client::new();
 
     println!("MQTT Client V1.0\n");
     println!("Client connected?: {:?}", client.is_connected());
-
+    
     loop {
         // read from stdin and send to server
         //let mut input = String::new();
-        
-
-        // si el usuario se conecta -->connect
-        // si quiere  publish  --> checquear si esta connectado
-        // luego hace match
 
         let packet: Packet::<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();         
         let user_input = user_input();
         
         match user_input[0].to_lowercase().as_ref() {
             "connect" => {
-              //TODO: Agreagar validacion de los parametros ingresados como host, port, username, password
+                let host_str: Option<String> = user_input.get(1).and_then(|v| {v.parse().ok()});
+                let port_str: Option<String> = user_input.get(2).and_then(|v| {v.parse().ok()});
+                let username_str: Option<String> = user_input.get(3).and_then(|v| {v.parse().ok()});
+                let password_str: Option<String> = user_input.get(4).and_then(|v| {v.parse().ok()});
+                 
+                let mut host: String =String::from("");
+                let mut port: String=String::from("");
+                let mut username: String=String::from("");
+                let mut password: String=String::from(""); 
+
+                match host_str {
+                    Some(_) => {host = user_input[1].trim().parse()
+                    .expect("wrong value!");
+                },
+                     None => println!("non-existent host value"),
+                }
+
+                match port_str {
+                    Some(_) => {port = user_input[2].trim().parse()
+                    .expect("wrong value!");
+                },
+                     None => println!("non-existent port value"),
+                }
+
+                match username_str {
+                    Some(_) => {username = user_input[3].trim().parse()
+                    .expect("wrong value!");
+                },
+                     None => println!("non-existent username value"),
+                }
+                
+                match password_str {
+                    Some(_) => {password = user_input[4].trim().parse()
+                    .expect("wrong value!");
+                },
+                     None => println!("non-existent password value"),
+                }
+                
               if !client.is_connected() {
                 // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
-                client.connect();
+                client.connect(host,port,username,password);
                 let packet = packet.connect(client.get_id_client());
                 client.send(packet.value());
                 println!("send connect");

@@ -26,10 +26,12 @@ pub struct Client {
   packet_identifier: u16,
   id_client: String,
   client_connection: sync::Arc<AtomicBool>,
+  username: String,
+  password: String,
 }
 
 impl Client {
-  pub fn new(server_host: String, server_port:  String ) -> Client {
+  pub fn new() -> Client {
     let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = channel();
     let rx = Arc::new(Mutex::new(rx));
     let tx = Arc::new(Mutex::new(tx));
@@ -41,13 +43,15 @@ impl Client {
         .collect();
     let packet_identifier: u16 = 0;
     Client{
-      server_host,
-      server_port,
+      server_host: String::from(""),
+      server_port: String::from(""),
       tx,
       rx,
-      id_client,
       packet_identifier,
+      id_client,
       client_connection: sync::Arc::new(AtomicBool::new(false)),
+      username: String::from(""),
+      password: String::from(""),
     }
   }
 
@@ -56,11 +60,11 @@ impl Client {
   }
 
   pub fn publish(&self, _topic: String, _payload: String) {
-    let Self { server_host: _, server_port: _, tx, rx: _ , id_client: _, client_connection: _, packet_identifier: _} = self;
+    let Self { server_host: _, server_port: _, tx, rx: _ ,packet_identifier: _,id_client: _, client_connection: _,
+              username: _ ,password: _ } = self;
     let msg = vec![0x30];
 
     let packet = Packet::<VariableHeader, Payload>::new();
-    //let packet = packet.publish(dup, qos, retain, topic_name, payload);
 
     if validate_msg(msg.clone()) {
       tx.lock().unwrap()
@@ -94,7 +98,7 @@ impl Client {
     self.packet_identifier.clone()
   }
 
-  pub fn connect(&self) -> () {
+  pub fn connect(& mut self,host: String,port: String,username: String,password: String) -> () {
     // let Self {
     //   server_host,
     //   server_port,
@@ -102,6 +106,10 @@ impl Client {
     //   rx,
     // } = self;
 
+    self.server_host = host;
+    self.server_port = port;
+    self.username = username;
+    self.password = password;
     match TcpStream::connect(self.server_host.to_string() + ":" + &self.server_port) {
       Ok(mut stream) => {
         println!("Successfully connected to server in port {}", self.server_port);
