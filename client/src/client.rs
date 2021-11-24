@@ -68,13 +68,18 @@ impl Client {
     self.client_connection.load(Ordering::SeqCst).clone()
   }
 
-  pub fn publish(&self, _topic: String, _payload: String) {
+  pub fn publish(&self, topic: String, payload: String) {
     let Self { server_host: _, server_port: _, tx, rx: _ ,packet_identifier: _,client_identifier: _, client_connection: _,
               username: _ ,password: _ , connect_retries: _} = self;
-    let msg = vec![0x30];
 
     let packet = Packet::<VariableHeader, Payload>::new();
+    let dup = 0;
+    let qos = 0;
+    let retain = 0;
 
+    let packet = packet.publish(dup, qos, retain, self.packet_identifier, topic, payload);
+
+    let msg = packet.value();
     if validate_msg(msg.clone()) {
       tx.lock().unwrap()
       .send(msg).unwrap();
@@ -84,7 +89,7 @@ impl Client {
 
     fn validate_msg(msg: Vec<u8>) -> bool {
       let byte = msg[0];
-      byte & 0xF0 == 0x10
+      byte & 0xF0 == (control_type::PUBLISH as u8)
     }
   }
 
@@ -99,12 +104,32 @@ impl Client {
 
     fn validate_msg(msg: Vec<u8>) -> bool {
       let byte = msg[1];
-      byte & 0xF0 == 0x10
+      byte & 0xF0 == control_type::CONNECT
     }
   }
 
   pub fn get_packet_identifier(&self) -> u16 {
     self.packet_identifier.clone()
+  }
+
+  pub fn disconnect(&self) {
+    let Self { server_host: _, server_port: _, tx, rx: _ ,packet_identifier: _,client_identifier: _, client_connection: _,
+              username: _ ,password: _ , connect_retries: _} = self;
+    let packet = Packet::<VariableHeader, Payload>::new();
+    let packet = packet.disconnect();
+
+    let msg = packet.value();
+    if validate_msg(msg.clone()) {
+      tx.lock().unwrap()
+      .send(msg).unwrap();
+    } else {
+      println!("can't send message: {:?}", msg);
+    }
+
+    fn validate_msg(msg: Vec<u8>) -> bool {
+      let byte = msg[0];
+      byte & 0xF0 == control_type::DISCONNECT
+    }
   }
 
   pub fn connect(& mut self,host: String,port: String,username: String,password: String) -> () {
@@ -132,8 +157,42 @@ impl Client {
         let stream_arc = Arc::new(Mutex::new(stream));
         let _stream = Arc::clone(&stream_arc);
 
-        let rx = self.rx.clone();
-        let _handle_write = thread::Builder::new().name("Thread: write to stream".to_string())
+        // let rx = self.rx.clone();
+        // let _handle_write = thread::Builder::new().name("Thread: write to stream".to_string())
+        // .spawn( move || 
+        //   loop {
+        //     let guard = rx.lock().unwrap();
+        //     match guard.recv() {
+        //         Ok(msg) => {
+        //             println!("Thread client write got a msg: {:?}", msg);
+        //             // send message to stream
+        //             stream_arc.lock().unwrap().write_all(&msg).unwrap(); 
+        //             // Drop the `MutexGuard` to allow other threads to make use of rx
+        //             drop(guard);
+        //             //thread::sleep(Duration::from_millis(50));
+        //         },
+        //         Err(e) => {
+        //             println!("Thread client write got a error: {:?}", e);
+        //             break;
+        //         }
+        //     };
+        //     // TODO: this sleep does not need to be here on production
+        //     //thread::sleep(time::Duration::from_millis(30));
+        //   }
+        // );
+        Client::handle_write(stream_arc, self.rx.clone());
+        Client::handle_read(_stream, self.client_connection.clone());
+        
+        // let _res = handle_read.join();
+      },
+      Err(e) => {
+          println!("Failed to connect: {}", e);
+      }
+    };
+  }
+  
+  pub fn handle_write(stream: Arc<Mutex<TcpStream>>, rx: Arc<Mutex<Receiver<Vec<u8>>>>) {
+    let _handle_write = thread::Builder::new().name("Thread: write to stream".to_string())
         .spawn( move || 
           loop {
             let guard = rx.lock().unwrap();
@@ -141,7 +200,7 @@ impl Client {
                 Ok(msg) => {
                     println!("Thread client write got a msg: {:?}", msg);
                     // send message to stream
-                    stream_arc.lock().unwrap().write_all(&msg).unwrap(); 
+                    stream.lock().unwrap().write_all(&msg).unwrap(); 
                     // Drop the `MutexGuard` to allow other threads to make use of rx
                     drop(guard);
                     //thread::sleep(Duration::from_millis(50));
@@ -155,16 +214,8 @@ impl Client {
             //thread::sleep(time::Duration::from_millis(30));
           }
         );
-        Client::handle_read(_stream, self.client_connection.clone());
-        
-        // let _res = handle_read.join();
-      },
-      Err(e) => {
-          println!("Failed to connect: {}", e);
-      }
-    };
+
   }
-  
   pub fn handle_read(stream: Arc<Mutex<TcpStream>>, client_connection: sync::Arc<AtomicBool>) {
     let _handle_read = thread::Builder::new().name("Thread: read from stream".to_string())
         .spawn(move || loop {
