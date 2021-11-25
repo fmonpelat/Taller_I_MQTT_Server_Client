@@ -1,6 +1,4 @@
 use crate::logger::{Logger, Logging};
-use core::time;
-use std::alloc::handle_alloc_error;
 use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
 use mqtt_packet::mqtt_packet_service::header_packet::control_type;
 use mqtt_packet::mqtt_packet_service::payload_packet::{
@@ -16,7 +14,7 @@ use std::io::{Error, ErrorKind, Read, Result, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
-use std::thread::{self, Thread};
+use std::thread::{self};
 use std::thread::JoinHandle;
 
 type HashPersistanceConnections = HashMap<SocketAddr, JoinHandle<()>>; //ver ip addres para u8
@@ -70,7 +68,7 @@ impl Server {
         ) -> Result<()> {
             let mut buff = [0_u8; 1024];
             Ok(loop {
-                match stream.read(&mut buff) {     
+                match stream.read(&mut buff) {
                     Ok(_size) => {
                         if _size > 0 {
                             let control_type = buff[0];
@@ -105,11 +103,11 @@ impl Server {
                                 logger.debug(
                                     "Clean buffer to continue reading from stream".to_string(),
                                 );
-                                //drop(buff);
+
                                 buff = [0_u8; 1024];
                             };
 
-                            thread::sleep(time::Duration::from_millis(2000));
+                            // thread::sleep(time::Duration::from_millis(2000));
                         };
                     }
                     Err(_) => {
