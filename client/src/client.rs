@@ -65,17 +65,8 @@ impl Client {
         self.client_connection.load(Ordering::SeqCst).clone()
     }
 
-    pub fn send(&self, value: Vec<u8>) {
-        if validate_msg(value.clone()) {
-            self.tx.lock().unwrap().send(value).unwrap();
-        } else {
-            println!("can't send message: {:?}", value);
-        }
-
-        fn validate_msg(msg: Vec<u8>) -> bool {
-            let byte = msg[1];
-            byte & 0xF0 == control_type::CONNECT
-        }
+    pub fn send(&self, value: Vec<u8>) { 
+        self.tx.lock().unwrap().send(value).unwrap_or_else(|_| println!("Cannot send packet"));
     }
 
     pub fn get_packet_identifier(&self) -> u16 {
