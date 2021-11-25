@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 use std::iter;
-use std::net::TcpStream;
+use std::net::{Shutdown, TcpStream};
 use std::sync::{Arc, Mutex};
 extern crate rand;
 use mqtt_packet::mqtt_packet_service::header_packet::control_type;
@@ -109,12 +109,6 @@ impl Client {
         username: String,
         password: String,
     ) -> () {
-        // let Self {
-        //   server_host,
-        //   server_port,
-        //   tx: _,
-        //   rx,
-        // } = self;
 
         self.server_host = host;
         self.server_port = port;
@@ -139,33 +133,9 @@ impl Client {
                 let stream_arc = Arc::new(Mutex::new(stream));
                 let _stream = Arc::clone(&stream_arc);
 
-                // let rx = self.rx.clone();
-                // let _handle_write = thread::Builder::new().name("Thread: write to stream".to_string())
-                // .spawn( move ||
-                //   loop {
-                //     let guard = rx.lock().unwrap();
-                //     match guard.recv() {
-                //         Ok(msg) => {
-                //             println!("Thread client write got a msg: {:?}", msg);
-                //             // send message to stream
-                //             stream_arc.lock().unwrap().write_all(&msg).unwrap();
-                //             // Drop the `MutexGuard` to allow other threads to make use of rx
-                //             drop(guard);
-                //             //thread::sleep(Duration::from_millis(50));
-                //         },
-                //         Err(e) => {
-                //             println!("Thread client write got a error: {:?}", e);
-                //             break;
-                //         }
-                //     };
-                //     // TODO: this sleep does not need to be here on production
-                //     //thread::sleep(time::Duration::from_millis(30));
-                //   }
-                // );
                 Client::handle_write(stream_arc, self.rx.clone());
                 Client::handle_read(_stream, self.client_connection.clone());
 
-                // let _res = handle_read.join();
             }
             Err(e) => {
                 println!("Failed to connect: {}", e);
@@ -204,8 +174,8 @@ impl Client {
                 let mut buff = [0_u8; 1024];
 
                 match stream.lock().unwrap().read(&mut buff) {
-                    Ok(_) => {
-                        if !buff.is_empty() {
+                    Ok(_size) => {
+                        if _size > 0 {
                             match buff[0] {
                                 control_type::CONNACK => {
                                     client_connection.store(true, Ordering::SeqCst);
@@ -222,7 +192,10 @@ impl Client {
                         }
                     }
                     Err(e) => {
-                        println!("Failed to receive data: {}", e);
+                        println!("Failed to receive data, closing connection with server: {}",stream.lock().unwrap().peer_addr().unwrap());
+                        // if we cant unwrap the mutex at this stage better panic
+                        stream.lock().unwrap().shutdown(Shutdown::Both).unwrap();
+                        break
                     }
                 }
                 //thread::sleep(time::Duration::from_millis(60));
