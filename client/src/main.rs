@@ -145,6 +145,7 @@ fn main() {
                     let packet_identifier = client.get_packet_identifier();
                     let packet =
                         packet.publish(dup, qos, retain, packet_identifier, topic_name, message);
+                        println!("{:?}",packet.value());
                     client.send(packet.value());
                 }
                 "pingreq" => {

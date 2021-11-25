@@ -69,9 +69,8 @@ impl Server {
              server_connections: ServerConnections
         ) -> Result<()> {
             let mut buff = [0_u8; 1024];
-
             Ok(loop {
-                match stream.read(&mut buff) {
+                match stream.read(&mut buff) {     
                     Ok(_size) => {
                         if _size > 0 {
                             let control_type = buff[0];
@@ -95,6 +94,7 @@ impl Server {
                                         ));
                                         let mut copy_buff = [0_u8; 1024];
                                         buff = Server::recalculate_buff(&mut buff, &mut copy_buff);
+                                        println!("buff recalculate {:?}",buff);
                                         continue;
                                     }
                                     Err(e) => {
@@ -255,7 +255,7 @@ impl Server {
                 if unvalue.header.control_flags == control_flags::QOS1 {
                     logger.debug("Identified QoS1 flag. PubAck sent".to_string());
                     let packet = Packet::<VariableHeaderPacketIdentifier, Payload>::new();
-                    let packet = packet.puback(packet_id.into());
+                    let packet = packet.puback(packet_id as u16);
 
                     if let Err(e) = stream.write_all(&packet.value()) {
                         logger.debug("Client disconnect".to_string());
