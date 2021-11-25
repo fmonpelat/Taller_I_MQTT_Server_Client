@@ -65,7 +65,7 @@ fn main() {
                         // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
                         client.connect(host, port, username, password);
                         let client_identifier = client.get_id_client();
-                        println!("Connected to server with client id {}", client_identifier);
+                        println!("Trying to connect with client id {}", client_identifier);
                         let packet = packet.connect(client_identifier.clone());
                         client.send(packet.value());
                         println!("send connect");
@@ -176,22 +176,22 @@ fn main() {
                             "test".to_string(),
                         );
                         let client_identifier = client.get_id_client();
-                        println!("Connected to server with client id {}", client_identifier);
+                        println!("Trying to connect with client id {}", client_identifier);
                         let packet = packet.connect(client_identifier.clone());
                         client.send(packet.value());
                         println!("send connect");
                         let mut i: usize = 0;
                         let conn_retries = client.get_connect_retries();
                         loop {
+                            if i >= conn_retries {
+                                println!("Not connected to server");
+                                break;
+                            }
                             if client.is_connected() {
                                 println!(
                                     "Connected to server with client id {}",
                                     client_identifier
                                 );
-                                break;
-                            }
-                            if i > conn_retries {
-                                println!("Not connected to server");
                                 break;
                             }
                             i += 1;
