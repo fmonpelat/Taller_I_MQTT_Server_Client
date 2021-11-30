@@ -66,9 +66,6 @@ fn main() {
                         client.connect(host, port, username, password);
                         let client_identifier = client.get_id_client();
                         println!("Trying to connect with client id {}", client_identifier);
-                        let packet = packet.connect(client_identifier.clone());
-                        client.send(packet.value());
-                        println!("send connect");
                         let mut i: usize = 0;
                         let conn_retries = client.get_connect_retries();
                         loop {
@@ -177,8 +174,6 @@ fn main() {
                         );
                         let client_identifier = client.get_id_client();
                         println!("Trying to connect with client id {}", client_identifier);
-                        let packet = packet.connect(client_identifier.clone());
-                        client.send(packet.value());
                         println!("send connect");
                         let mut i: usize = 0;
                         let conn_retries = client.get_connect_retries();
@@ -198,10 +193,23 @@ fn main() {
                             thread::sleep(time::Duration::from_millis(1000));
                             println!("waiting for connection ... retries: {}/{}", i, conn_retries);
                         }
-                    } else {
-                        println!("Already connected!");
-                    }
+                        let packet_identifier = client.get_packet_identifier();
+                        let packet =
+                            packet.publish(0, 0, 0, packet_identifier, "hola".to_string(), "hola2".to_string());
+                            println!("{:?}",packet.value());
+                        client.send(packet.value());
+                        } else {
+                            println!("Already connected!");
+                        }
                 }
+                "test-p" => {
+                    println!("try publish");
+                    let packet_identifier = client.get_packet_identifier();
+                    let packet =
+                        packet.publish(0, 0, 0, packet_identifier, "asasa".to_string(), "asasa".to_string() );
+                        println!("{:?}",packet.value());
+                    client.send(packet.value());
+                },
                 "test-connection" => {
                     if client.is_connected() {
                         println!(
