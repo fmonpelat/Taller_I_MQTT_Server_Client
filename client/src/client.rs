@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 use std::iter;
 use std::net::{Shutdown, TcpStream};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 extern crate rand;
 use mqtt_packet::mqtt_packet_service::header_packet::control_type;
 use rand::distributions::Alphanumeric;
@@ -115,7 +116,7 @@ impl Client {
         self.username = username;
         self.password = password;
         match TcpStream::connect(self.server_host.to_string() + ":" + &self.server_port) {
-            Ok(mut stream) => {
+            Ok(stream) => {
                 println!(
                     "Successfully connected to server in port {}",
                     self.server_port
@@ -123,17 +124,13 @@ impl Client {
 
                 let packet = Packet::<VariableHeader, Payload>::new();
                 let packet = packet.connect(self.client_identifier.clone());
-                let msg: Vec<u8> = packet.value();
 
-                match stream.write_all(&(msg)) {
-                  Ok(v) => v,
-                  Err(_) => println!("Can't write message. "),
-              }
+                self.send(packet.value());
 
                 let stream_arc = Arc::new(Mutex::new(stream));
                 let _stream = Arc::clone(&stream_arc);
 
-                Client::handle_write(stream_arc, self.rx.clone());
+                Client::handle_write(stream_arc, Arc::clone(&self.rx));
                 Client::handle_read(_stream, self.client_connection.clone());
 
             }
@@ -148,15 +145,15 @@ impl Client {
             .name("Thread: write to stream".to_string())
             .spawn(move || loop {
                 let guard = rx.lock().unwrap();
-                
+
+                println!("adquiring lock");
                 match guard.recv() {
                     Ok(msg) => {
                         println!("Thread client write got a msg: {:?}", msg);
                         // send message to stream
                         stream.lock().unwrap().write_all(&msg).unwrap();
                         // Drop the `MutexGuard` to allow other threads to make use of rx
-                        drop(guard);
-                        //thread::sleep(Duration::from_millis(50));
+                        thread::sleep(Duration::from_millis(50));
                     }
                     Err(e) => {
                         println!("Thread client write got a error: {:?}", e);

@@ -8,6 +8,7 @@ fn main() -> Result<(), ()> {
     let file_name = "../log.txt";
     let logger = Logger::new(file_name, true);
 
+    // TODO: leer de config.yaml y configurar el server
     let server = Server::new("0.0.0.0".to_owned(), "3333".to_owned(), file_name);
 
     match server.listening() {
