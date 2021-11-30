@@ -193,21 +193,24 @@ fn main() {
                             thread::sleep(time::Duration::from_millis(1000));
                             println!("waiting for connection ... retries: {}/{}", i, conn_retries);
                         }
+                        
+                    } else {
+                        println!("Already connected!");
+                    }
+                    if client.is_connected() {
                         let packet_identifier = client.get_packet_identifier();
                         let packet =
-                            packet.publish(0, 0, 0, packet_identifier, "hola".to_string(), "hola2".to_string());
-                            println!("{:?}",packet.value());
+                        packet.publish(0, 0, 0, packet_identifier, "hola".to_string(), "hola2".to_string());
+                        println!("{:?}",packet.value());
                         client.send(packet.value());
-                        } else {
-                            println!("Already connected!");
-                        }
+                    }
                 }
                 "test-p" => {
                     println!("try publish");
                     let packet_identifier = client.get_packet_identifier();
                     let packet =
-                        packet.publish(0, 0, 0, packet_identifier, "asasa".to_string(), "asasa".to_string() );
-                        println!("{:?}",packet.value());
+                    packet.publish(0, 0, 0, packet_identifier, "asasa".to_string(), "asasa".to_string() );
+                    println!("{:?}",packet.value());
                     client.send(packet.value());
                 },
                 "test-connection" => {
@@ -225,7 +228,6 @@ fn main() {
                 }
                 _ => {
                     println!("Message not understood: {:?}", user_input);
-                    // print to stdout not understand
                 }
             }
         } else {

@@ -1,3 +1,4 @@
+use core::time;
 use std::io::{Read, Write};
 use std::iter;
 use std::net::{Shutdown, TcpStream};
@@ -103,6 +104,20 @@ impl Client {
         }
     }
 
+    // pub fn keepalive(stream: Arc<Mutex<TcpStream>>, keepalive_interval: usize) {
+    //   let _handle = thread::Builder::new()
+    //     .name("Thread: keepalive".to_string())
+    //     .spawn(move || loop {
+    //       let mut stream_ = stream.lock().unwrap();
+
+    //       let packet = Packet::<VariableHeader, Payload>::new();
+    //       let packet = packet.pingreq();
+    //       stream_.write_all(&packet.value()).unwrap();
+    //       thread::sleep(Duration::from_millis(keepalive_interval as u64));
+    //   });
+
+    // }
+
     pub fn connect(
         &mut self,
         host: String,
@@ -126,13 +141,12 @@ impl Client {
                 let packet = packet.connect(self.client_identifier.clone());
 
                 self.send(packet.value());
-
+                
                 let stream_arc = Arc::new(Mutex::new(stream));
-                let _stream = Arc::clone(&stream_arc);
+                let _stream = stream_arc.clone();
 
-                Client::handle_write(stream_arc, Arc::clone(&self.rx));
                 Client::handle_read(_stream, self.client_connection.clone());
-
+                Client::handle_write(stream_arc, Arc::clone(&self.rx));
             }
             Err(e) => {
                 println!("Failed to connect: {}", e);
@@ -141,36 +155,41 @@ impl Client {
     }
 
     pub fn handle_write(stream: Arc<Mutex<TcpStream>>, rx: Arc<Mutex<Receiver<Vec<u8>>>>) {
-        let _handle_write = thread::Builder::new()
-            .name("Thread: write to stream".to_string())
-            .spawn(move || loop {
-                let guard = rx.lock().unwrap();
+      let _handle_write = thread::Builder::new()
+        .name("Thread: write to stream".to_string())
+        .spawn(move || loop {
+          let rx_guard = rx.lock().unwrap();
+          let mut stream_ = stream.lock().unwrap();
 
-                println!("adquiring lock");
-                match guard.recv() {
-                    Ok(msg) => {
-                        println!("Thread client write got a msg: {:?}", msg);
-                        // send message to stream
-                        stream.lock().unwrap().write_all(&msg).unwrap();
-                        // Drop the `MutexGuard` to allow other threads to make use of rx
-                        thread::sleep(Duration::from_millis(50));
-                    }
-                    Err(e) => {
-                        println!("Thread client write got a error: {:?}", e);
-                        break;
-                    }
-                };
-                // TODO: this sleep does not need to be here on production
-                //thread::sleep(time::Duration::from_millis(30));
-            });
+          match rx_guard.recv() {
+            Ok(msg) => {
+              println!("Thread client write got a msg: {:?}", msg);
+              // send message to stream
+              stream_.write_all(&msg).unwrap();
+              println!("Thread client successfully sended the message");
+            }
+            Err(e) => {
+              println!("Thread client write got an error: {:?}", e);
+              break;
+            }
+          };
+          drop(stream_);
+          thread::sleep(Duration::from_millis(100));
+      });
     }
+
     pub fn handle_read(stream: Arc<Mutex<TcpStream>>, client_connection: sync::Arc<AtomicBool>) {
+        let peer = stream.lock().unwrap().peer_addr().unwrap();
         let _handle_read = thread::Builder::new()
             .name("Thread: read from stream".to_string())
             .spawn(move || loop {
-                let mut buff = [0_u8; 1024];
+                let mut buff = [0_u8; 4098];
 
-                match stream.lock().unwrap().read(&mut buff) {
+                let stream_lock = stream.lock().unwrap();
+                let mut tpcstream = &*stream_lock;
+                tpcstream.set_read_timeout(Some(Duration::from_millis(100))).unwrap();
+                match tpcstream.read(&mut buff)
+                {
                     Ok(_size) => {
                         if _size > 0 {
                             match buff[0] {
@@ -188,16 +207,19 @@ impl Client {
                             }
                         }
                     }
-                    Err(e) => {
-                        println!("Failed to receive data, closing connection with server: {}",stream.lock().unwrap().peer_addr().unwrap());
-                        // if we cant unwrap the mutex at this stage better panic
-                        stream.lock().unwrap().shutdown(Shutdown::Both).unwrap();
-                        break
+                    Err(_error) => {
+                      continue
+                        // println!("Failed to receive data, closing connection with server: {} error: {:?}",peer, error);
+                        // // if we cant unwrap the mutex at this stage better panic
+                        // stream_lock.shutdown(Shutdown::Both).unwrap();
+                        // // drop(stream_lock);
+                        // break
                     }
                 }
-                //thread::sleep(time::Duration::from_millis(60));
+                drop(stream_lock);
+                thread::sleep(time::Duration::from_millis(100));
             });
-    }
+        }
 
     pub fn get_id_client(&self) -> String {
         self.client_identifier.clone()
