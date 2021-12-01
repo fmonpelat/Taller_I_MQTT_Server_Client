@@ -151,7 +151,7 @@ fn main() {
                         println!("Not connected to server, please connect first");
                         continue;
                     }
-                    let packet = packet.pingresp();
+                    let packet = packet.pingreq();
                     client.send(packet.value());
                     println!("send pingreq");
                 }
