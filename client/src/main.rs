@@ -142,7 +142,7 @@ fn main() {
                     let packet_identifier = client.get_packet_identifier();
                     let packet =
                         packet.publish(dup, qos, retain, packet_identifier, topic_name, message);
-                        println!("{:?}",packet.value());
+                    println!("{:?}", packet.value());
                     client.send(packet.value());
                 }
                 "pingreq" => {
@@ -193,26 +193,37 @@ fn main() {
                             thread::sleep(time::Duration::from_millis(1000));
                             println!("waiting for connection ... retries: {}/{}", i, conn_retries);
                         }
-                        
                     } else {
                         println!("Already connected!");
                     }
                     if client.is_connected() {
                         let packet_identifier = client.get_packet_identifier();
-                        let packet =
-                        packet.publish(0, 0, 0, packet_identifier, "hola".to_string(), "hola2".to_string());
-                        println!("{:?}",packet.value());
+                        let packet = packet.publish(
+                            0,
+                            0,
+                            0,
+                            packet_identifier,
+                            "hola".to_string(),
+                            "hola2".to_string(),
+                        );
+                        println!("{:?}", packet.value());
                         client.send(packet.value());
                     }
                 }
                 "test-p" => {
                     println!("try publish");
                     let packet_identifier = client.get_packet_identifier();
-                    let packet =
-                    packet.publish(0, 0, 0, packet_identifier, "asasa".to_string(), "asasa".to_string() );
-                    println!("{:?}",packet.value());
+                    let packet = packet.publish(
+                        0,
+                        0,
+                        0,
+                        packet_identifier,
+                        "asasa".to_string(),
+                        "asasa".to_string(),
+                    );
+                    println!("{:?}", packet.value());
                     client.send(packet.value());
-                },
+                }
                 "test-connection" => {
                     if client.is_connected() {
                         println!(
@@ -256,10 +267,10 @@ pub fn parser_str(value: String) -> String {
 }
 
 #[test]
-    fn test_parser(){
-        let vec = ["0","1","3"];
-        assert_eq!("0",parser_str(vec[0].to_string()))
-    }
+fn test_parser() {
+    let vec = ["0", "1", "3"];
+    assert_eq!("0", parser_str(vec[0].to_string()))
+}
 
 #[cfg(test)]
 mod tests {
