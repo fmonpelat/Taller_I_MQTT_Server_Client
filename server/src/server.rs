@@ -59,8 +59,12 @@ impl Server {
             tx_server: Arc::new(Mutex::new(tx_server)),
             rx_server: Arc::new(Mutex::new(rx_server)),
         };
-        let _handle = Server::message_handler(server.tx_server.clone(), server.rx_server.clone(), server.hash_topics.clone());
-        return server;
+        let _handle = Server::message_handler(
+            server.tx_server.clone(),
+            server.rx_server.clone(),
+            server.hash_topics.clone(),
+        );
+        server
     }
 
     fn handle_client(
@@ -170,7 +174,7 @@ impl Server {
         self.logger.debug("ready to binding".to_string());
         self.logger.info(format!(
             "server address: {:?}",
-            server_address.to_string() + ":" + &server_port.as_str()
+            server_address.to_string() + ":" + server_port.as_str()
         ));
         let address = format!("{}:{}", server_address, server_port);
         let listener = TcpListener::bind(address)?;
@@ -256,12 +260,12 @@ impl Server {
                 hash_server_connections
                     .lock()
                     .unwrap()
-                    .insert(peer_addr.clone(), server_connections.clone());
+                    .insert(peer_addr, server_connections.clone());
 
                 let packet = Packet::<VariableHeader, Payload>::new();
                 let packet =
                     packet.connack(connect_ack_flags::SESSION_PRESENT, connect_return::ACCEPTED);
-                logger.debug(format!("Sending connack packet"));
+                logger.debug("Sending connack packet".to_string());
                 if let Err(e) = stream.write_all(&packet.value()) {
                     logger.debug("Client disconnect".to_string());
                     return Err(Error::new(
@@ -298,7 +302,7 @@ impl Server {
                 ];
                 tx_server
                     .send(msg_server.clone())
-                    .expect(&format!("Cannot proccess publish message {:?}", msg_server));
+                    .unwrap_or_else(|_| panic!("Cannot proccess publish message {:?}", msg_server));
             }
             control_type::DISCONNECT => {
                 // TODO investigate what kind of action need to take
@@ -320,7 +324,7 @@ impl Server {
                     suback_return_codes::FAILURE,
                 ];
                 let packet = Packet::<VariableHeader, Payload>::new();
-                let packet = packet.suback(packet_id.into(), qos_stub.clone());
+                let packet = packet.suback(packet_id.into(), qos_stub);
                 // TODO add topic and tx channel into hash topics
                 if let Err(e) = stream.write_all(&packet.value()) {
                     logger.debug("Client disconnect".to_string());
@@ -338,7 +342,7 @@ impl Server {
                 ));
                 let packet = Packet::<VariableHeader, Payload>::new();
                 let packet = packet.pingresp();
-                logger.debug(format!("Sending pingresp packet"));
+                logger.debug("Sending pingresp packet".to_string());
                 if let Err(e) = stream.write_all(&packet.value()) {
                     logger.debug("Client disconnect".to_string());
                     return Err(Error::new(
@@ -352,7 +356,7 @@ impl Server {
                 logger.debug("Id not match with any control packet".to_string());
                 return Err(Error::new(
                     ErrorKind::Other,
-                    format!("Error: cannot match with any control type"),
+                    "Error: cannot match with any control type".to_string(),
                 ));
             }
         }
@@ -376,7 +380,7 @@ impl Server {
         Ok(hash.contains_key(&peer_addr))
     }
 
-    fn _get_hash_topics(topic: &String, hash_topics: Arc<Mutex<HashTopics>>) -> Result<bool> {
+    fn _get_hash_topics(topic: &str, hash_topics: Arc<Mutex<HashTopics>>) -> Result<bool> {
         let hash = hash_topics.lock().unwrap();
         Ok(hash.contains_key(topic))
     }
@@ -407,7 +411,9 @@ impl Server {
                                 .lock()
                                 .unwrap()
                                 .entry(topic_name.to_string())
-                                .and_modify(|vector| vector.push(tx_server.lock().unwrap().clone()));
+                                .and_modify(|vector| {
+                                    vector.push(tx_server.lock().unwrap().clone())
+                                });
                         }
                         println!("Thread message handler update topic hash ");
                     }
