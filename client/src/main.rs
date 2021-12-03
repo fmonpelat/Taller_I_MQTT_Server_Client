@@ -63,7 +63,9 @@ fn main() {
 
                     if !client.is_connected() {
                         // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
-                        client.connect(host, port, username, password).expect("Error connecting");
+                        client
+                            .connect(host, port, username, password)
+                            .expect("Error connecting");
                         let client_identifier = client.get_id_client();
                         println!("Trying to connect with client id {}", client_identifier);
                         let mut i: usize = 0;

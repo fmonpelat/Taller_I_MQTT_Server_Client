@@ -64,11 +64,11 @@ impl Client {
     }
 
     pub fn get_connect_retries(&self) -> usize {
-        self.connect_retries.clone()
+        self.connect_retries
     }
 
     pub fn is_connected(&self) -> bool {
-        self.client_connection.load(Ordering::SeqCst).clone()
+        self.client_connection.load(Ordering::SeqCst)
     }
 
     pub fn send(&self, value: Vec<u8>) {
@@ -80,7 +80,7 @@ impl Client {
     }
 
     pub fn get_packet_identifier(&self) -> u16 {
-        self.packet_identifier.clone()
+        self.packet_identifier
     }
 
     pub fn disconnect(&self) {
@@ -98,7 +98,7 @@ impl Client {
         let packet = Packet::<VariableHeader, Payload>::new();
         let packet = packet.disconnect();
         let mut stream = stream.lock().unwrap();
-        stream.write(&packet.value()).expect("Cannot send packet");
+        stream.write_all(&packet.value()).expect("Cannot send packet");
         stream.shutdown(std::net::Shutdown::Both).unwrap();
     }
 
@@ -138,7 +138,7 @@ impl Client {
                         .wait_timeout(received, Duration::from_secs(keepalive_interval as u64))
                         .unwrap();
                     let mut received = result.0;
-                    if *received == true {
+                    if *received {
                         // send next keepalive
                         keepalive_timer = Instant::now();
                         *received = false;
