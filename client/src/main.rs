@@ -3,7 +3,7 @@ use crate::client::Client;
 use core::time;
 use mqtt_packet::mqtt_packet_service::payload_packet::Payload;
 use mqtt_packet::mqtt_packet_service::variable_header_packet::VariableHeader;
-use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket};
+use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet};
 use std::io::stdin;
 use std::thread;
 
@@ -18,7 +18,7 @@ fn main() {
         // reading user input
         let user_input = user_input();
 
-        if user_input.len() > 0 {
+        if !user_input.is_empty() {
             match user_input[0].to_lowercase().as_ref() {
                 "connect" => {
                     let host_str: Option<String> = user_input.get(1).and_then(|v| v.parse().ok());
@@ -63,7 +63,7 @@ fn main() {
 
                     if !client.is_connected() {
                         // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
-                        client.connect(host, port, username, password);
+                        client.connect(host, port, username, password).expect("Error connecting");
                         let client_identifier = client.get_id_client();
                         println!("Trying to connect with client id {}", client_identifier);
                         let mut i: usize = 0;
@@ -166,12 +166,14 @@ fn main() {
                     println!("test connection to localhost");
                     if !client.is_connected() {
                         // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
-                        client.connect(
-                            "localhost".to_string(),
-                            "3333".to_string(),
-                            "test".to_string(),
-                            "test".to_string(),
-                        ).expect("error connecting");
+                        client
+                            .connect(
+                                "localhost".to_string(),
+                                "3333".to_string(),
+                                "test".to_string(),
+                                "test".to_string(),
+                            )
+                            .expect("error connecting");
                         let client_identifier = client.get_id_client();
                         println!("Trying to connect with client id {}", client_identifier);
                         println!("send connect");
@@ -190,7 +192,7 @@ fn main() {
                                 break;
                             }
                             i += 1;
-                            // thread::sleep(time::Duration::from_millis(1000));
+                            thread::sleep(time::Duration::from_millis(1000));
                             println!("waiting for connection ... retries: {}/{}", i, conn_retries);
                         }
                     } else {

@@ -1,8 +1,8 @@
 use core::time;
 use std::io::{Read, Write};
 use std::iter;
-use std::net::{TcpStream};
-use std::sync::{Arc, Mutex, Condvar};
+use std::net::TcpStream;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 extern crate rand;
 use mqtt_packet::mqtt_packet_service::header_packet::control_type;
@@ -23,7 +23,7 @@ pub struct Client {
     server_port: String,
     tx: Arc<Mutex<Sender<Vec<u8>>>>,
     rx: Arc<Mutex<Receiver<Vec<u8>>>>,
-    keepalive_pair: Arc<(Mutex<bool>,Condvar)>,
+    keepalive_pair: Arc<(Mutex<bool>, Condvar)>,
     packet_identifier: u16,
     client_identifier: String,
     client_connection: sync::Arc<AtomicBool>,
@@ -47,7 +47,7 @@ impl Client {
         let packet_identifier: u16 = rng.gen();
         let connect_retries: usize = 10;
         let keepalive_pair = Arc::new((Mutex::new(false), Condvar::new()));
-        
+
         Client {
             server_host: String::from(""),
             server_port: String::from(""),
@@ -86,36 +86,40 @@ impl Client {
     pub fn disconnect(&self) {
         let packet = Packet::<VariableHeader, Payload>::new();
         let packet = packet.disconnect();
-        self.tx.lock().unwrap().send(packet.value()).expect("Cannot send packet");
+        self.tx
+            .lock()
+            .unwrap()
+            .send(packet.value())
+            .expect("Cannot send packet");
         self.client_connection.store(false, Ordering::SeqCst);
     }
 
     pub fn disconnect_stream(stream: Arc<Mutex<TcpStream>>) {
-      let packet = Packet::<VariableHeader, Payload>::new();
-      let packet = packet.disconnect();
-      let mut stream = stream.lock().unwrap();
-      stream.write(&packet.value()).expect("Cannot send packet");
-      stream.shutdown(std::net::Shutdown::Both).unwrap();
+        let packet = Packet::<VariableHeader, Payload>::new();
+        let packet = packet.disconnect();
+        let mut stream = stream.lock().unwrap();
+        stream.write(&packet.value()).expect("Cannot send packet");
+        stream.shutdown(std::net::Shutdown::Both).unwrap();
     }
 
     pub fn keepalive(
         stream: Arc<Mutex<TcpStream>>,
         keepalive_interval: usize,
-        pair: Arc<(Mutex<bool>,Condvar)>,
+        pair: Arc<(Mutex<bool>, Condvar)>,
     ) {
         fn send_keepalive(stream: Arc<Mutex<TcpStream>>) {
-          let packet = Packet::<VariableHeader, Payload>::new();
-          let packet = packet.pingreq();
-          let msg = packet.value();
-          println!("sending keepalive, locking stream");
-          stream
-            .lock()
-            .unwrap()
-            .write_all(&msg)
-            .expect("Could not write to stream sending pingreq");
-          drop(stream);
+            let packet = Packet::<VariableHeader, Payload>::new();
+            let packet = packet.pingreq();
+            let msg = packet.value();
+            println!("sending keepalive, locking stream");
+            stream
+                .lock()
+                .unwrap()
+                .write_all(&msg)
+                .expect("Could not write to stream sending pingreq");
+            drop(stream);
         }
-        
+
         // if keepalive is set to zero disable
         if keepalive_interval == 0 {
             return;
@@ -124,29 +128,31 @@ impl Client {
         let mut keepalive_timer = Instant::now();
 
         let _handle = thread::Builder::new()
-          .name("Thread: keepalive".to_string())
-          .spawn(move || {
-            let (lock, cvar) = &*pair;
-            loop {
-              send_keepalive(stream.clone());
-              let received = lock.lock().unwrap();
-              let result = cvar.wait_timeout(received, Duration::from_secs(keepalive_interval as u64)).unwrap();
-              let mut received = result.0;
-              if *received == true {
-                // send next keepalive
-                keepalive_timer = Instant::now();
-                *received = false;
-              } else {
-                // check if keepalive has timed out
-                if keepalive_timer.elapsed().as_secs() >= keepalive_interval as u64 {
-                  println!("keepalive timed out");
-                  Client::disconnect_stream(stream.clone());
-                  break;
+            .name("Thread: keepalive".to_string())
+            .spawn(move || {
+                let (lock, cvar) = &*pair;
+                loop {
+                    send_keepalive(stream.clone());
+                    let received = lock.lock().unwrap();
+                    let result = cvar
+                        .wait_timeout(received, Duration::from_secs(keepalive_interval as u64))
+                        .unwrap();
+                    let mut received = result.0;
+                    if *received == true {
+                        // send next keepalive
+                        keepalive_timer = Instant::now();
+                        *received = false;
+                    } else {
+                        // check if keepalive has timed out
+                        if keepalive_timer.elapsed().as_secs() >= keepalive_interval as u64 {
+                            println!("keepalive timed out");
+                            Client::disconnect_stream(stream.clone());
+                            break;
+                        }
+                    }
+                    thread::sleep(Duration::from_secs(keepalive_interval as u64));
                 }
-              }
-              thread::sleep(Duration::from_secs(keepalive_interval as u64));
-            }
-          });
+            });
     }
 
     pub fn connect(
@@ -218,7 +224,7 @@ impl Client {
         stream: Arc<Mutex<TcpStream>>,
         client_connection: sync::Arc<AtomicBool>,
         keepalive_interval: usize,
-        keepalive_pair: Arc<(Mutex<bool>,Condvar)>,
+        keepalive_pair: Arc<(Mutex<bool>, Condvar)>,
     ) {
         // let peer = stream.lock().unwrap().peer_addr().unwrap();
         let _handle_read = thread::Builder::new()
@@ -238,13 +244,17 @@ impl Client {
                                 control_type::CONNACK => {
                                     client_connection.store(true, Ordering::SeqCst);
                                     println!("Connack received! setting keepalive");
-                                    Client::keepalive(stream.clone(),keepalive_interval, keepalive_pair.clone());
+                                    Client::keepalive(
+                                        stream.clone(),
+                                        keepalive_interval,
+                                        keepalive_pair.clone(),
+                                    );
                                 }
                                 control_type::PUBACK => {
                                     println!("Puback received!");
                                 }
                                 control_type::PUBLISH => {
-                                    println!("Publish received! {:?}", msg);
+                                    println!("Publish received!");
                                 }
                                 control_type::PINGRESP => {
                                     // println!("Ping response received!");
