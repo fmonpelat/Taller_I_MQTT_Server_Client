@@ -29,7 +29,7 @@ pub struct Server {
     hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
     hash_server_connections: Arc<Mutex<HashServerConnections>>,
     hash_topics: Arc<Mutex<HashTopics>>,
-    tx_server: Sender<Vec<String>>,
+    tx_server: Arc<Mutex<Sender<Vec<String>>>>,
     rx_server: Arc<Mutex<Receiver<Vec<String>>>>,
 }
 #[derive(Clone, Debug)]
@@ -49,17 +49,18 @@ impl Server {
         let hash_topics: Arc<Mutex<HashTopics>> = Arc::new(Mutex::new(HashMap::new()));
         let (tx_server, rx_server) = channel::<Vec<String>>();
         //TODO Check return and see how call to the function
-        let _handle = message_handler(tx_server, rx_server, hash_topics);
-        Server {
+        let server = Server {
             server_address: Arc::new(server_address),
             server_port: Arc::new(server_port),
             logger: Arc::new(Logger::new(file_source, true)),
             hash_persistance_connections,
             hash_server_connections,
             hash_topics,
-            tx_server,
+            tx_server: Arc::new(Mutex::new(tx_server)),
             rx_server: Arc::new(Mutex::new(rx_server)),
-        }
+        };
+        let _handle = Server::message_handler(server.tx_server.clone(), server.rx_server.clone(), server.hash_topics.clone());
+        return server;
     }
 
     fn handle_client(
@@ -189,12 +190,13 @@ impl Server {
                     let logger = this.logger.clone();
                     let _server_connections = Arc::clone(&this.hash_server_connections);
                     logger.info(format!("New client connected: {}", peer));
+                    let tx = this.tx_server.lock().unwrap();
                     let _handle = Server::handle_client(
                         peer.to_string(),
                         stream,
                         logger,
                         _server_connections,
-                        self.tx_server.clone(),
+                        tx.clone(),
                     );
                     self.hash_persistance_connections
                         .lock()
@@ -336,7 +338,7 @@ impl Server {
                 ));
                 let packet = Packet::<VariableHeader, Payload>::new();
                 let packet = packet.pingresp();
-                logger.debug(format!("Sending connack packet"));
+                logger.debug(format!("Sending pingresp packet"));
                 if let Err(e) = stream.write_all(&packet.value()) {
                     logger.debug("Client disconnect".to_string());
                     return Err(Error::new(
@@ -379,7 +381,7 @@ impl Server {
         Ok(hash.contains_key(topic))
     }
     fn message_handler(
-        tx_server: Sender<Vec<String>>,
+        tx_server: Arc<Mutex<Sender<Vec<String>>>>,
         rx_server: Arc<Mutex<Receiver<Vec<String>>>>,
         hash_topics: Arc<Mutex<HashTopics>>,
     ) {
@@ -394,7 +396,8 @@ impl Server {
                         let topic_name = &msg[1];
                         if !hash_topics.lock().unwrap().contains_key(topic_name) {
                             let mut vec: Vec<Sender<Vec<String>>> = Vec::new();
-                            vec.push(tx_server.clone());
+                            let tx = tx_server.lock().unwrap().clone();
+                            vec.push(tx);
                             hash_topics
                                 .lock()
                                 .unwrap()
@@ -404,7 +407,7 @@ impl Server {
                                 .lock()
                                 .unwrap()
                                 .entry(topic_name.to_string())
-                                .and_modify(|vector| vector.push(tx_server.clone()));
+                                .and_modify(|vector| vector.push(tx_server.lock().unwrap().clone()));
                         }
                         println!("Thread message handler update topic hash ");
                     }

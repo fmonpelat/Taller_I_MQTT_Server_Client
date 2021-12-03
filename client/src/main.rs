@@ -171,7 +171,7 @@ fn main() {
                             "3333".to_string(),
                             "test".to_string(),
                             "test".to_string(),
-                        );
+                        ).expect("error connecting");
                         let client_identifier = client.get_id_client();
                         println!("Trying to connect with client id {}", client_identifier);
                         println!("send connect");
@@ -190,7 +190,7 @@ fn main() {
                                 break;
                             }
                             i += 1;
-                            thread::sleep(time::Duration::from_millis(1000));
+                            // thread::sleep(time::Duration::from_millis(1000));
                             println!("waiting for connection ... retries: {}/{}", i, conn_retries);
                         }
                     } else {
