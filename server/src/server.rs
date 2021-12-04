@@ -429,7 +429,7 @@ impl Server {
              match rx_server_guard.recv() {
               Ok(msg) => {
                 println!("Thread message handler received topic: {:?}", msg);
-                let packet_type = msg[1].as_str();
+                let packet_type = msg[0].as_str();
                 match packet_type {
                 // si es publish debe tomar el array de hash topic, iterarlo y cada tx de ese array debe ejercutar send con el packet valuede un publish packet
                   "publish" => {
