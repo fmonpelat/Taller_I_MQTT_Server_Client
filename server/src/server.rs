@@ -1,12 +1,13 @@
 use crate::logger::{Logger, Logging};
 use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
-use mqtt_packet::mqtt_packet_service::header_packet::control_type;
+use mqtt_packet::mqtt_packet_service::header_packet::{control_type, PacketHeader};
 use mqtt_packet::mqtt_packet_service::payload_packet::{Payload, PublishPayload, SuscribePayload};
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{
     connect_ack_flags, connect_return, VariableHeader, VariableHeaderPacketIdentifier,
     VariableHeaderPublish,
 };
 use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket, Utils};
+use rand::Rng;
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Read, Result, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
@@ -18,7 +19,7 @@ use std::time::Duration;
 
 type HashPersistanceConnections = HashMap<String, JoinHandle<()>>; // la clave es el ip address
 type HashServerConnections = HashMap<String, HandleClientConnections>; // la clave es el client_id de mqtt
-type HashTopics = HashMap<String, Vec<Sender<Vec<String>>>>;
+type HashTopics = HashMap<String, Vec<Sender<Vec<u8>>>>;
 #[derive(Clone)]
 pub struct Server {
     server_address: Arc<String>,
@@ -32,8 +33,8 @@ pub struct Server {
 }
 #[derive(Clone, Debug)]
 pub struct HandleClientConnections {
-    tx: Arc<Mutex<Sender<String>>>,
-    rx: Arc<Mutex<Receiver<String>>>,
+    tx: Arc<Mutex<Sender<Vec<u8>>>>,
+    rx: Arc<Mutex<Receiver<Vec<u8>>>>,
     peer: Arc<Mutex<String>>,
 }
 
@@ -61,6 +62,7 @@ impl Server {
             server.tx_server.clone(),
             server.rx_server.clone(),
             server.hash_topics.clone(),
+            server.hash_server_connections.clone(),
         );
         server
     }
@@ -105,12 +107,12 @@ impl Server {
                                     &client_connections,
                                     tx_server.clone(),
                                     hash_topics.clone(),
+                                    &mut _clientId,
                                 ) {
                                     Ok(client_id) => {
-                                        _clientId = client_id;
                                         logger.debug(format!(
-                                            "Packet from peer {} has been processed",
-                                            stream.peer_addr()?
+                                            "Packet from peer {} and client id: {} has been processed",
+                                            stream.peer_addr()?, client_id
                                         ));
                                         logger.debug("Cleaning buffer".to_string());
                                         buff = [0_u8; 1024];
@@ -125,8 +127,6 @@ impl Server {
                                 );
                                 buff = [0_u8; 1024];
                             };
-
-                            // thread::sleep(time::Duration::from_millis(2000));
                         };
                     }
                     Err(_) => {
@@ -139,11 +139,11 @@ impl Server {
                     }
                 }
 
-                // TODO, read rx channel and write to stream
+                // TODO, read rx channel of this thread and act like a proxy (write drectly to stream)
             })
         }
 
-        let (tx, rx) = channel::<String>();
+        let (tx, rx) = channel::<Vec<u8>>();
 
         let handle_client_connections = HandleClientConnections {
             tx: Arc::new(Mutex::new(tx)),
@@ -243,10 +243,10 @@ impl Server {
         client_connections: &HandleClientConnections,
         tx_server: Sender<Vec<String>>,
         hash_topics: Arc<Mutex<HashTopics>>,
+        client_id: & mut String,
     ) -> Result<String> {
         let packet_id = buff[0] & 0xF0;
         let peer_addr = stream.peer_addr()?;
-        let client_id = String::new();
 
         if (packet_id == control_type::CONNECT)
             && Server::get_id_persistance_connections(
@@ -254,13 +254,11 @@ impl Server {
                 hash_persistance_connections.clone(),
             )?
         {
-            logger.debug("Client already connected".to_string());
-            // TODO: set client_id with the packet client_id
+            logger.debug(format!("Client already connected clientId: {}", client_id));
             return Err(Error::new(
                 ErrorKind::Other,
                 "Error, client already connected",
             ));
-            // TODO: check if retain is 1 to clear the hash_server_connections and re create it
         }
         // check other packets type
         match packet_id {
@@ -272,12 +270,14 @@ impl Server {
                 ));
 
                 let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(buff);
-                let _client_identifier: String = unvalued_packet.payload.client_identifier;
+                let client_identifier: String = unvalued_packet.payload.client_identifier;
+                let mut client_id = client_identifier.clone();
 
+                // TODO: check retain if we need to persist the client_id
                 hash_server_connections
                     .lock()
                     .unwrap()
-                    .insert(peer_addr.to_string(), client_connections.clone());
+                    .insert(client_id, client_connections.clone());
 
                 let packet = Packet::<VariableHeader, Payload>::new();
                 let packet =
@@ -309,11 +309,13 @@ impl Server {
                         ));
                     }
                 } else {
-                    // TO DO investigate what kind of action need to take
                     logger.debug("Identified QoS0 flag. Nothing to do".to_string());
                 }
                 let msg_server: Vec<String> = vec![
                     "publish".to_string(),
+                    unvalue.header.get_qos().to_string(),
+                    if unvalue.header.get_dup() { 1 } else { 0 }.to_string(),
+                    if unvalue.header.get_retain() { 1 } else { 0 }.to_string(),
                     String::from_utf8_lossy(&unvalue.variable_header.topic_name).to_string(),
                     unvalue.payload.message,
                 ];
@@ -344,19 +346,25 @@ impl Server {
                     Packet::<VariableHeaderPacketIdentifier, SuscribePayload>::unvalue(buff);
                 let packet_identifier = unvalue.variable_header.packet_identifier;
                 let qos = unvalue.payload.qos;
-
                 let topics = unvalue.payload.topic_filter;
-                for topic in &topics {
-                    hash_topics
-                        .lock()
-                        .unwrap()
-                        .entry(topic.to_string())
-                        .and_modify(|vector| vector.push(tx_server.clone()));
+                
+                // enviando al tx del server los topics suscriptos
+                logger.debug("Sending tx server to the subcribed topics".to_string());
+                for topic in topics {
+                    let msg_server = vec![
+                        "subscribe".to_string(),
+                        client_id.to_string(),
+                        packet_identifier.to_string(),
+                        topic.to_string(),
+                    ];
+                    tx_server
+                        .send(msg_server.clone())
+                        .unwrap_or_else(|_| panic!("Cannot proccess subscribe message {:?}", msg_server));
                 }
-
+                // enviar el suback
+                logger.debug("Sending suback packet to client".to_string());
                 let packet = Packet::<VariableHeader, Payload>::new();
                 let packet = packet.suback(packet_identifier, qos);
-                // TODO add topic and tx channel into hash topics
                 if let Err(e) = stream.write_all(&packet.value()) {
                     logger.debug("Client disconnect".to_string());
                     return Err(Error::new(
@@ -364,6 +372,7 @@ impl Server {
                         format!("Error: cannot write: {}", e),
                     ));
                 }
+                
             }
             control_type::PINGREQ => {
                 logger.info("PingReq packet received".to_string());
@@ -392,7 +401,7 @@ impl Server {
             }
         }
 
-        Ok(client_id)
+        Ok(client_id.to_string())
     }
 
     fn get_id_persistance_connections(
@@ -411,50 +420,86 @@ impl Server {
         tx_server: Arc<Mutex<Sender<Vec<String>>>>,
         rx_server: Arc<Mutex<Receiver<Vec<String>>>>,
         hash_topics: Arc<Mutex<HashTopics>>,
+        hash_server_connections:Arc<Mutex<HashServerConnections>>,
     ) {
         let _handle = thread::Builder::new()
-            .name("Thread: Message handler".to_string())
-            .spawn(move || loop {
-                let rx_server_guard = rx_server.lock().unwrap();
-                match rx_server_guard.recv() {
-                    Ok(msg) => {
-                        println!("Thread message handler received topic: {:?}", msg);
-                        // check if topic name exist
-                        let topic_name = &msg[1];
-                        //TODO verificar si el topic name es suscribe o publish
-                        // si es publish debe tomar el array de hash topic, iterarlo y cada tx de ese array debe ejercutar send con el packet valuede un publish packet
-                        // si es subscribe debe guardar el topic name en el hash de topic y asignar el tx obtenido mediante el peer addr sumistrado en msg con el hash de connection
-                        // si ya se encuentra el topic name debe hacer push del tx
-                        //if !hash_topics.lock().unwrap().contains_key(topic_name) {
-                        //    let mut vec: Vec<Sender<Vec<String>>> = Vec::new();
-                        //    let tx = tx_server.lock().unwrap().clone();
-                        //    vec.push(tx);
-                        //    hash_topics
-                        //        .lock()
-                        //        .unwrap()
-                        //        .insert(topic_name.to_string(), vec);
-                        //} else {
-                        //    hash_topics
-                        //        .lock()
-                        //        .unwrap()
-                        //        .entry(topic_name.to_string())
-                        //        .and_modify(|vector| {
-                        //            vector.push(tx_server.lock().unwrap().clone())
-                        //        });
-                        //}
-                        println!("Thread message handler update topic hash ");
-                        for (key, value) in hash_topics.lock().unwrap().iter() {
-                            println!("{:?} - {:#?}", key, value);
-                            println!("{:?}", value);
-                            println!("printing following topics");
+          .name("Thread: Message handler".to_string())
+          .spawn(move || loop {
+            let rx_server_guard = rx_server.lock().unwrap();
+             match rx_server_guard.recv() {
+              Ok(msg) => {
+                println!("Thread message handler received topic: {:?}", msg);
+                let packet_type = msg[1].as_str();
+                match packet_type {
+                // si es publish debe tomar el array de hash topic, iterarlo y cada tx de ese array debe ejercutar send con el packet valuede un publish packet
+                  "publish" => {
+                    // message = [ packet_type, dup, qos, retain, topic, message ]
+                    let dup = msg[2].as_bytes()[0];
+                    let qos = msg[3].as_bytes()[0];
+                    let retain = msg[4].as_bytes()[0];
+                    let topic = &msg[5];
+                    let message = &msg[6];
+                    // create new packet identifier
+                    let mut rng = rand::thread_rng();
+                    let packet_identifier: u16 = rng.gen();
+                    if !topic.is_empty() {
+                      hash_topics
+                      .lock()
+                      .unwrap()
+                      .entry(topic.to_string())
+                      .and_modify(|vector| {
+                        for tx in vector {
+                          let packet = Packet::<VariableHeader, Payload>::new();
+                          let packet = packet.publish(dup, qos, retain, packet_identifier,topic.to_string(), message.to_string());
+                          tx.send(packet.value()).unwrap_or_else(|_| panic!("Cannot proccess publish message {:?}", msg));
                         }
+                      });
+                    } else {
+                      println!("Publish on server received a Topic that is is empty");
                     }
-                    Err(e) => {
-                        println!("Thread message handler got an error: {:?}", e);
-                        break;
-                    }
+                  },
+                // si es subscribe debe guardar el topic name en el hash de topic y asignar el tx obtenido mediante el peer addr sumistrado en msg con el hash de connection
+                // si ya se encuentra el topic name debe hacer push del tx
+                  "subscribe" => {
+                        // message = [ packet_type, client_id, packet_id, topic_name ]
+                        let client_id = msg[2].as_str();
+                        let packet_id = msg[3].as_bytes()[0] as u16;
+                        let topic = &msg[4];
+                        
+                        if !client_id.is_empty() {
+                            hash_topics
+                                .lock()
+                                .unwrap()
+                                .entry(topic.to_string())
+                                .and_modify(|vector| {
+                                    let value = hash_server_connections
+                                        .lock()
+                                        .unwrap()
+                                        .get(client_id).unwrap().tx.clone();
+                                    let tx = &*value.lock().unwrap();
+                                    vector.push(tx.to_owned());
+                                });
+                        } else {
+                            println!("Cannot find client Identified");           
+                        }
+                  }
+                  _ =>{
+                    println!("Not received any packet type");
+                  }
                 };
-                thread::sleep(Duration::from_millis(50));
-            });
+                println!("Thread message handler update topic hash");
+                for (key, value) in hash_topics.lock().unwrap().iter() {
+                    println!("{:?} - {:#?}", key, value);
+                    println!("{:?}", value);
+                    println!("printing following topics");
+                }
+            },
+            Err(e) => {
+                println!("Thread message handler got an error: {:?}", e);
+                break;
+            }
+        };
+        thread::sleep(Duration::from_millis(50));
+        });
     }
 }
