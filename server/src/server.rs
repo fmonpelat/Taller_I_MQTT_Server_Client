@@ -74,7 +74,6 @@ impl Server {
         hash_server_connections: Arc<Mutex<HashServerConnections>>,
         hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
         tx_server: Sender<Vec<String>>,
-        hash_topics: Arc<Mutex<HashTopics>>,
     ) -> Result<JoinHandle<()>> {
         fn _handle_client_(
             mut stream: TcpStream,
@@ -83,7 +82,6 @@ impl Server {
             hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
             client_connections: HandleClientConnections,
             tx_server: Sender<Vec<String>>,
-            hash_topics: Arc<Mutex<HashTopics>>,
         ) -> Result<()> {
             let mut buff = [0_u8; 1024];
             let mut _clientId = String::new();
@@ -106,7 +104,6 @@ impl Server {
                                     hash_persistance_connections.clone(),
                                     &client_connections,
                                     tx_server.clone(),
-                                    hash_topics.clone(),
                                     &mut _clientId,
                                 ) {
                                     Ok(client_id) => {
@@ -163,7 +160,6 @@ impl Server {
                     hash_persistance_connections,
                     handle_client_connections,
                     tx_server,
-                    hash_topics,
                 ) {
                     Ok(_) => {
                         println!("Connection with {} closed", peer);
@@ -210,7 +206,6 @@ impl Server {
                         this.hash_server_connections.clone(),
                         this.hash_persistance_connections.clone(),
                         tx.clone(),
-                        self.hash_topics.clone(),
                     );
                     self.hash_persistance_connections
                         .lock()
@@ -242,24 +237,29 @@ impl Server {
         hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
         client_connections: &HandleClientConnections,
         tx_server: Sender<Vec<String>>,
-        hash_topics: Arc<Mutex<HashTopics>>,
         client_id: & mut String,
     ) -> Result<String> {
         let packet_id = buff[0] & 0xF0;
         let peer_addr = stream.peer_addr()?;
 
-        if (packet_id == control_type::CONNECT)
-            && Server::get_id_persistance_connections(
-                peer_addr.ip().to_string(),
-                hash_persistance_connections.clone(),
-            )?
-        {
-            logger.debug(format!("Client already connected clientId: {}", client_id));
-            return Err(Error::new(
-                ErrorKind::Other,
-                "Error, client already connected",
-            ));
+        if packet_id == control_type::CONNECT as u8 {
+            let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(buff.clone());
+            let client_identifier: String = unvalued_packet.payload.client_identifier;
+            println!("Client Connection with Client identifier: {}, verifying that was connected...", client_identifier);
+            
+            if Server::get_id_persistance_connections(
+                client_identifier,
+                hash_server_connections.clone(),
+            ).unwrap() {
+                logger.debug(format!("Client already connected clientId: {}", client_id));
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    "Error, client already connected",
+                ));
+            }
+            // si no lo encuentra debemos seguir sin dar error ...
         }
+
         // check other packets type
         match packet_id {
             control_type::CONNECT => {
@@ -406,9 +406,9 @@ impl Server {
 
     fn get_id_persistance_connections(
         ip_addr: String,
-        hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
+        hash_server_connections: Arc<Mutex<HashServerConnections>>,
     ) -> Result<bool> {
-        let hash = hash_persistance_connections.lock().unwrap();
+        let hash = hash_server_connections.lock().unwrap();
         Ok(hash.contains_key(&ip_addr))
     }
 
