@@ -394,7 +394,7 @@ impl Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
 
     /// Deserializes a Packet<VariableHeaderPacketIdentifier, SuscribePayload>
     #[allow(dead_code)]
-    fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
+    pub fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
         let mut absolute_index: usize = 0;
         let mut has_payload = false;
         let mut has_variable_header = false;
@@ -475,7 +475,7 @@ impl Packet<VariableHeaderPacketIdentifier, SubackPayload> {
 
     /// Deserializes a Packet<VariableHeaderPacketIdentifier, SubackPayload>
     #[allow(dead_code)]
-    fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, SubackPayload> {
+    pub fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, SubackPayload> {
         let mut absolute_index: usize = 0;
         let mut has_payload = false;
         let mut has_variable_header = false;

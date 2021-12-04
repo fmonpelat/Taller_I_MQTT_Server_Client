@@ -2,7 +2,7 @@ use crate::logger::{Logger, Logging};
 use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
 use mqtt_packet::mqtt_packet_service::header_packet::control_type;
 use mqtt_packet::mqtt_packet_service::payload_packet::{
-    suback_return_codes, Payload, PublishPayload,
+    suback_return_codes, Payload, PublishPayload, SuscribePayload, SubackPayload,
 };
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{
     connect_ack_flags, connect_return, VariableHeader, VariableHeaderPacketIdentifier,
@@ -18,8 +18,8 @@ use std::thread::JoinHandle;
 use std::thread::{self};
 use std::time::Duration;
 
-type HashPersistanceConnections = HashMap<SocketAddr, JoinHandle<()>>; //ver ip addres para u8
-type HashServerConnections = HashMap<SocketAddr, ServerConnections>;
+type HashPersistanceConnections = HashMap<String, JoinHandle<()>>;  // la clave es el client_id de mqtt
+type HashServerConnections = HashMap<String, HandleClientConnections>; // la clave es el client_id de mqtt
 type HashTopics = HashMap<String, Vec<Sender<Vec<String>>>>;
 #[derive(Clone)]
 pub struct Server {
@@ -33,7 +33,7 @@ pub struct Server {
     rx_server: Arc<Mutex<Receiver<Vec<String>>>>,
 }
 #[derive(Clone, Debug)]
-pub struct ServerConnections {
+pub struct HandleClientConnections {
     tx: Arc<Mutex<Sender<String>>>,
     rx: Arc<Mutex<Receiver<String>>>,
     peer: Arc<Mutex<String>>,
@@ -78,8 +78,9 @@ impl Server {
             mut stream: TcpStream,
             logger: Arc<Logger>,
             hash_server_connections: Arc<Mutex<HashServerConnections>>,
-            server_connections: ServerConnections,
+            server_connections: HandleClientConnections,
             tx_server: Sender<Vec<String>>,
+            tx_client: Sender<String>,
         ) -> Result<()> {
             let mut buff = [0_u8; 1024];
             Ok(loop {
@@ -139,7 +140,7 @@ impl Server {
 
         let (tx, rx) = channel::<String>();
 
-        let server_connections = ServerConnections {
+        let handle_client_connections = HandleClientConnections {
             tx: Arc::new(Mutex::new(tx)),
             rx: Arc::new(Mutex::new(rx)),
             peer: Arc::new(Mutex::new(peer.to_string())),
@@ -154,8 +155,10 @@ impl Server {
                     stream,
                     logger,
                     hash_server_connections,
-                    server_connections,
+                    handle_client_connections,
                     tx_server,
+                    handle_client_connections.tx,
+
                 ) {
                     Ok(_) => {
                         println!("Connection with {} closed", peer);
@@ -164,6 +167,7 @@ impl Server {
                         println!("Error: {}", e);
                     }
                 }
+                //TODO listen to rx handle client connection to send
             });
         handle
     }
@@ -192,20 +196,19 @@ impl Server {
                     let peer = stream.peer_addr()?;
                     let this = server_mutex.lock().unwrap();
                     let logger = this.logger.clone();
-                    let _server_connections = Arc::clone(&this.hash_server_connections);
                     logger.info(format!("New client connected: {}", peer));
                     let tx = this.tx_server.lock().unwrap();
                     let _handle = Server::handle_client(
                         peer.to_string(),
                         stream,
                         logger,
-                        _server_connections,
+                        this.hash_server_connections.clone(),
                         tx.clone(),
                     );
                     self.hash_persistance_connections
                         .lock()
                         .unwrap()
-                        .insert(peer, _handle.unwrap());
+                        .insert(peer.to_string(), _handle.unwrap());
                 }
                 Err(e) => {
                     /* connection failed */
@@ -229,11 +232,13 @@ impl Server {
         stream: &mut TcpStream,
         logger: &Arc<Logger>,
         hash_server_connections: &Arc<Mutex<HashServerConnections>>,
-        server_connections: &ServerConnections,
+        server_connections: &HandleClientConnections,
         tx_server: Sender<Vec<String>>,
+        hash_topics: Arc<Mutex<HashTopics>>,
     ) -> Result<&'static str> {
         let packet_id = buff[0] & 0xF0;
         let peer_addr = stream.peer_addr()?;
+        let connect_packet = Packet::<VariableHeader,Payload>::unvalue(buff);
 
         if (packet_id == control_type::CONNECT)
             && Server::get_id_server_connections(peer_addr, hash_server_connections)?
@@ -260,7 +265,7 @@ impl Server {
                 hash_server_connections
                     .lock()
                     .unwrap()
-                    .insert(peer_addr, server_connections.clone());
+                    .insert(peer_addr.to_string(), server_connections.clone());
 
                 let packet = Packet::<VariableHeader, Payload>::new();
                 let packet =
@@ -318,13 +323,29 @@ impl Server {
             control_type::SUBSCRIBE => {
                 logger.debug("Suscribe packet received".to_string());
                 logger.debug(format!("Peer mqtt suscribe: {:?}", peer_addr));
-                let qos_stub = vec![
-                    suback_return_codes::SUCCESS_QOS0,
-                    suback_return_codes::SUCCESS_QOS1,
-                    suback_return_codes::FAILURE,
-                ];
+
+                let unvalue = Packet::<VariableHeaderPacketIdentifier, SuscribePayload>::unvalue(buff);
+                let packet_identifier = unvalue.variable_header.packet_identifier;
+                let qos = unvalue.payload.qos;
+                
+                let topics = unvalue.payload.topic_filter;
+                for topic in &topics{
+                    hash_topics
+                                .lock()
+                                .unwrap()
+                                .entry(topic.to_string())
+                                .and_modify(|vector| {
+                                    vector.push(tx_server.clone())
+                                });
+                }
+                self.hash_persistance_connections
+                                .lock()
+                                .unwrap()
+                                .insert(peer_addr, tx_server);
+                
+
                 let packet = Packet::<VariableHeader, Payload>::new();
-                let packet = packet.suback(packet_id.into(), qos_stub);
+                let packet = packet.suback(packet_identifier, qos);
                 // TODO add topic and tx channel into hash topics
                 if let Err(e) = stream.write_all(&packet.value()) {
                     logger.debug("Client disconnect".to_string());
@@ -333,6 +354,7 @@ impl Server {
                         format!("Error: cannot write: {}", e),
                     ));
                 }
+                
             }
             control_type::PINGREQ => {
                 logger.info("PingReq packet received".to_string());
@@ -398,24 +420,33 @@ impl Server {
                         println!("Thread message handler received topic: {:?}", msg);
                         // check if topic name exist
                         let topic_name = &msg[1];
-                        if !hash_topics.lock().unwrap().contains_key(topic_name) {
-                            let mut vec: Vec<Sender<Vec<String>>> = Vec::new();
-                            let tx = tx_server.lock().unwrap().clone();
-                            vec.push(tx);
-                            hash_topics
-                                .lock()
-                                .unwrap()
-                                .insert(topic_name.to_string(), vec);
-                        } else {
-                            hash_topics
-                                .lock()
-                                .unwrap()
-                                .entry(topic_name.to_string())
-                                .and_modify(|vector| {
-                                    vector.push(tx_server.lock().unwrap().clone())
-                                });
-                        }
+                        //TODO verificar si el topic name es suscribe o publish
+                        // si es publish debe tomar el array de hash topic, iterarlo y cada tx de ese array debe ejercutar send con el packet valuede un publish packet
+                        // si es subscribe debe guardar el topic name en el hash de topic y asignar el tx obtenido mediante el peer addr sumistrado en msg con el hash de connection
+                        // si ya se encuentra el topic name debe hacer push del tx
+                        //if !hash_topics.lock().unwrap().contains_key(topic_name) {
+                        //    let mut vec: Vec<Sender<Vec<String>>> = Vec::new();
+                        //    let tx = tx_server.lock().unwrap().clone();
+                        //    vec.push(tx);
+                        //    hash_topics
+                        //        .lock()
+                        //        .unwrap()
+                        //        .insert(topic_name.to_string(), vec);
+                        //} else {
+                        //    hash_topics
+                        //        .lock()
+                        //        .unwrap()
+                        //        .entry(topic_name.to_string())
+                        //        .and_modify(|vector| {
+                        //            vector.push(tx_server.lock().unwrap().clone())
+                        //        });
+                        //}
                         println!("Thread message handler update topic hash ");
+                        for (key, value) in hash_topics.lock().unwrap().iter() {
+                            println!("{:?} - {:#?}", key, value);
+                            println!("{:?}", value);
+                            println!("printing following topics");
+                        }
                     }
                     Err(e) => {
                         println!("Thread message handler got an error: {:?}", e);

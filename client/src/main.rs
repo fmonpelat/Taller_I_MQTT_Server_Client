@@ -164,6 +164,50 @@ fn main() {
                     }
                     client.disconnect();
                 }
+                "subscribe" => {
+                    // send subscribe
+                    if !client.is_connected() {
+                        println!("Not connected to server, please connect first");
+                        continue;
+                    }
+
+                    let qos1_str: Option<String> = user_input.get(1).and_then(|v| v.parse().ok());
+                    let qos2_str: Option<String> = user_input.get(2).and_then(|v| v.parse().ok());
+                    let mut qos1: u8 = 0;
+                    let mut qos2: u8 = 0;
+                    let mut qos_vec: Vec<u8> = Vec::new();
+                    let mut topic_names:Vec<String> = Vec::new();
+
+                    match qos1_str {
+                        Some(_) => {
+                            qos1 = user_input[1].trim().parse().expect("wrong value!");
+                            qos_vec.push(qos1);
+                        }
+                        None => println!("non-existent qos value"),
+                    }
+
+                    match qos2_str {
+                        Some(_) => {
+                            qos2 = user_input[2].trim().parse().expect("wrong value!");
+                            qos_vec.push(qos2);
+                        }
+                        None => println!("non-existent qos value"),
+                    }
+
+                    if user_input.len() > 2{
+                        for topic_name in &user_input[3..user_input.len()]{
+                            topic_names.push(topic_name.to_string());
+                        }
+
+                    }
+                    
+                    println!("try subscribe");
+                    let packet_identifier = client.get_packet_identifier();
+                    let packet =
+                        packet.suscribe( packet_identifier, topic_names, qos_vec);
+                    println!("{:?}", packet.value());
+                    client.send(packet.value());
+                }
                 "test" => {
                     println!("test connection to localhost");
                     if !client.is_connected() {
