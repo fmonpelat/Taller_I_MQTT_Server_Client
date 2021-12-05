@@ -4,7 +4,8 @@ use core::time;
 use mqtt_packet::mqtt_packet_service::payload_packet::Payload;
 use mqtt_packet::mqtt_packet_service::variable_header_packet::VariableHeader;
 use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet};
-use std::io::stdin;
+use rand::Error;
+use std::io::{stdin};
 use std::thread;
 
 fn main() {
@@ -37,37 +38,38 @@ fn main() {
                         Some(_) => {
                             host = parser_str(user_input[1].to_string());
                         }
-                        None => println!("non-existent host value"),
+                        None => println!("Non-existent host value"),
                     }
 
                     match port_str {
                         Some(_) => {
                             port = parser_str(user_input[2].to_string());
                         }
-                        None => println!("non-existent port value"),
+                        None => println!("Non-existent port value"),
                     }
 
                     match username_str {
                         Some(_) => {
                             username = parser_str(user_input[3].to_string());
                         }
-                        None => println!("non-existent username value"),
+                        None => println!("Non-existent username value"),
                     }
 
                     match password_str {
                         Some(_) => {
                             password = parser_str(user_input[4].to_string());
                         }
-                        None => println!("non-existent password value"),
+                        None => println!("Non-existent password value"),
                     }
 
                     if !client.is_connected() {
                         // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
                         client
-                            .connect(host, port, username, password)
+                            .connect(host.clone(), port.clone(), username.clone(), password)
                             .expect("Error connecting");
+                        println!("--> connect to server with host: {} port: {} username: {}", host, port,username);
                         let client_identifier = client.get_id_client();
-                        println!("Trying to connect with client id {}", client_identifier);
+                        println!("--> Trying to connect with client id {}", client_identifier);
                         let mut i: usize = 0;
                         let conn_retries = client.get_connect_retries();
                         loop {
@@ -87,13 +89,14 @@ fn main() {
                             println!("waiting for connection ... retries: {}/{}", i, conn_retries);
                         }
                     } else {
-                        println!("Already connected!");
+                        println!("--> Already connected!");
+                        continue;
                     }
                 },
                 "publish" => {
                     // send publish
                     if !client.is_connected() {
-                        println!("Not connected to server, please connect first");
+                        println!(" <-- Not connected to server. Please connect first");
                         continue;
                     }
 
@@ -112,54 +115,53 @@ fn main() {
 
                     match dup_str {
                         Some(_) => {
-                            dup = user_input[1].trim().parse().expect("wrong value!");
+                            dup = user_input[1].trim().parse().expect("Wrong value!");
                         }
-                        None => println!("non-existent dup value"),
+                        None => println!("Non-existent dup value"),
                     }
                     match qos_str {
                         Some(_) => {
-                            qos = user_input[2].trim().parse().expect("wrong value!");
+                            qos = user_input[2].trim().parse().expect("Wrong value!");
                         }
-                        None => println!("non-existent qos value"),
+                        None => println!("Non-existent qos value"),
                     }
                     match retain_str {
                         Some(_) => {
                             retain = user_input[3].trim().parse().expect("wrong value!");
                         }
-                        None => println!("non-existent retain value"),
+                        None => println!("Non-existent retain value"),
                     }
                     match topic_name_str {
                         Some(_) => {
                             topic_name = user_input[4].clone();
                         }
-                        None => println!("non-existent topic name value"),
+                        None => println!("Non-existent topic name value"),
                     }
                     match message_str {
                         Some(_) => {
                             message = user_input[5].clone();
                         }
-                        None => println!("non-existent message value"),
+                        None => println!("Non-existent message value"),
                     }
-                    // println!("try publish");
                     let packet_identifier = client.get_packet_identifier();
                     let packet =
                         packet.publish(dup, qos, retain, packet_identifier, topic_name.clone(), message.clone());
                     println!("--> publish topic: {} value: {}",topic_name, message);
-                    // println!("{:?}", packet.value());
                     client.send(packet.value());
                 },
                 "disconnect" => {
                     if !client.is_connected() {
-                        println!("Not connected to server, please connect first");
+                        println!(" <-- Not connected to server. Please connect first");
                         continue;
                     }
                     client.disconnect();
+                    println!("--> Disconnected from server.");
                 },
                 "subscribe" => {
                     // subscribe qos topic_name
                     // send subscribe
                     if !client.is_connected() {
-                        println!("Not connected to server, please connect first");
+                        println!(" <-- Not connected to server, please connect first");
                         continue;
                     }
 
@@ -170,28 +172,26 @@ fn main() {
                         user_input.get(2).and_then(|v| v.parse().ok());
                     let topic_name = topic_name_str.clone().unwrap_or(String::from(""));
                     
-                    println!("try subscribe");
                     let packet_identifier = client.get_packet_identifier();
                     let mut qos_vec: Vec<u8> = vec![]; 
                     let mut topic_names: Vec<String> = vec![]; 
                     if qos != "" { qos_vec.push(qos.parse().unwrap()); }
                     else {
-                        println!("non-existent qos value");
+                        println!("Non-existent qos value");
                         continue;
                     }
                     if topic_name != "" { topic_names.push(topic_name.clone()); }
                     else {
-                        println!("non-existent topic name value");
+                        println!("Non-existent topic name value");
                         continue;
                     }
                     let packet =
                         packet.suscribe( packet_identifier, topic_names, qos_vec);
-                    println!("--> subscribe topic: {}",topic_name);
-                    println!("{:?}", packet.value());
+                    println!("--> Subscribe topic: {}",topic_name);
                     client.send(packet.value());
                 },
                 "test" => {
-                    println!("test connection to localhost");
+                    println!("Test connection to localhost");
                     if !client.is_connected() {
                         // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
                         client
@@ -201,30 +201,31 @@ fn main() {
                                 "test".to_string(),
                                 "test".to_string(),
                             )
-                            .expect("error connecting");
+                            .expect("Error connecting");
                         let client_identifier = client.get_id_client();
-                        println!("Trying to connect with client id {}", client_identifier);
-                        println!("send connect");
+                        println!("--> Trying to connect with client id {}", client_identifier);
+                        println!("--> Send connect");
                         let mut i: usize = 0;
                         let conn_retries = client.get_connect_retries();
                         loop {
                             if i >= conn_retries {
-                                println!("Not connected to server");
+                                println!(" <-- Not connected to server");
                                 break;
                             }
                             if client.is_connected() {
                                 println!(
-                                    "Connected to server with client id {}",
+                                    " <-- Connected to server with client id {}",
                                     client_identifier
                                 );
                                 break;
                             }
                             i += 1;
                             thread::sleep(time::Duration::from_millis(1000));
-                            println!("waiting for connection ... retries: {}/{}", i, conn_retries);
+                            println!("Waiting for connection ... retries: {}/{}", i, conn_retries);
                         }
                     } else {
-                        println!("Already connected!");
+                        println!(" <-- Already connected!");
+                        continue;
                     }
                     if client.is_connected() {
                         let packet_identifier = client.get_packet_identifier();
@@ -236,12 +237,11 @@ fn main() {
                             "hola".to_string(),
                             "hola2".to_string(),
                         );
-                        println!("{:?}", packet.value());
+                        println!(" --> Sending packet: {:?}", packet.value());
                         client.send(packet.value());
                     }
                 },
                 "test-p" => {
-                    println!("try publish");
                     let packet_identifier = client.get_packet_identifier();
                     let packet = packet.publish(
                         0,
@@ -251,17 +251,18 @@ fn main() {
                         "asasa".to_string(),
                         "asasa".to_string(),
                     );
-                    println!("{:?}", packet.value());
+                    println!("--> publish topic: {} value: {}","asasa".to_string(), "asasa".to_string());
                     client.send(packet.value());
                 },
                 "test-connection" => {
                     if client.is_connected() {
                         println!(
-                            "Connected to server with client id {}",
+                            "<-- Connected to server with client id {}",
                             client.get_id_client()
                         );
                     } else {
-                        println!("Not connected to server");
+                        println!("<-- Not connected to server");
+                        continue;
                     }
                 },
                 "exit" => {
@@ -269,6 +270,7 @@ fn main() {
                 }
                 _ => {
                     println!("Message not understood: {:?}", user_input);
+                    continue;
                 },
             }
         } else {
@@ -280,26 +282,31 @@ fn main() {
 /// Opciones a ejecutar por el cliente.
 
 pub fn user_input() -> Vec<String> {
-    println!("Enter option...");
+    println!("Enter an option...");
     let mut a_str = String::new();
 
-    stdin().read_line(&mut a_str).expect("read error");
+    stdin().read_line(&mut a_str).expect("Read error");
     let input_stdin: Vec<String> = a_str
         .split_whitespace()
-        .map(|x| x.parse::<String>().expect("parse error"))
+        .map(|x| x.parse::<String>().expect("Parse error"))
         .collect::<Vec<String>>();
-    // println!("{:?}",input_stdin);
     input_stdin
 }
 
 pub fn parser_str(value: String) -> String {
-    value.trim().parse().expect("wrong value!")
+    value.trim().parse().expect("Wrong value!")
 }
 
 #[test]
 fn test_parser() {
     let vec = ["0", "1", "3"];
     assert_eq!("0", parser_str(vec[0].to_string()))
+}
+
+#[test]
+fn test_user_input() {
+    let input_stdin = String::from("publish 0 0 0 topic_name some_message");
+    assert_eq!("publish 0 0 0 topic_name some_message", parser_str(input_stdin.clone()));
 }
 
 #[cfg(test)]
