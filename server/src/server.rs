@@ -438,11 +438,11 @@ impl Server {
                             // si es publish debe tomar el array de hash topic, iterarlo y cada tx de ese array debe ejercutar send con el packet valuede un publish packet
                             "publish" => {
                                 // message = [ packet_type, dup, qos, retain, topic, message ]
-                                let dup = msg[2].as_bytes()[0];
-                                let qos = msg[3].as_bytes()[0];
-                                let retain = msg[4].as_bytes()[0];
-                                let topic = &msg[5];
-                                let message = &msg[6];
+                                let dup = msg[1].as_bytes()[0];
+                                let qos = msg[2].as_bytes()[0];
+                                let retain = msg[3].as_bytes()[0];
+                                let topic = &msg[4];
+                                let message = &msg[5];
                                 // create new packet identifier
                                 let mut rng = rand::thread_rng();
                                 let packet_identifier: u16 = rng.gen();
