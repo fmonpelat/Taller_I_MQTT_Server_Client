@@ -4,8 +4,7 @@ use core::time;
 use mqtt_packet::mqtt_packet_service::payload_packet::Payload;
 use mqtt_packet::mqtt_packet_service::variable_header_packet::VariableHeader;
 use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet};
-use rand::Error;
-use std::io::{stdin};
+use std::io::stdin;
 use std::thread;
 
 fn main() {
@@ -67,7 +66,10 @@ fn main() {
                         client
                             .connect(host.clone(), port.clone(), username.clone(), password)
                             .expect("Error connecting");
-                        println!("--> connect to server with host: {} port: {} username: {}", host, port,username);
+                        println!(
+                            "--> connect to server with host: {} port: {} username: {}",
+                            host, port, username
+                        );
                         let client_identifier = client.get_id_client();
                         println!("--> Trying to connect with client id {}", client_identifier);
                         let mut i: usize = 0;
@@ -92,7 +94,7 @@ fn main() {
                         println!("--> Already connected!");
                         continue;
                     }
-                },
+                }
                 "publish" => {
                     // send publish
                     if !client.is_connected() {
@@ -144,11 +146,17 @@ fn main() {
                         None => println!("Non-existent message value"),
                     }
                     let packet_identifier = client.get_packet_identifier();
-                    let packet =
-                        packet.publish(dup, qos, retain, packet_identifier, topic_name.clone(), message.clone());
-                    println!("--> publish topic: {} value: {}",topic_name, message);
+                    let packet = packet.publish(
+                        dup,
+                        qos,
+                        retain,
+                        packet_identifier,
+                        topic_name.clone(),
+                        message.clone(),
+                    );
+                    println!("--> publish topic: {} value: {}", topic_name, message);
                     client.send(packet.value());
-                },
+                }
                 "disconnect" => {
                     if !client.is_connected() {
                         println!(" <-- Not connected to server. Please connect first");
@@ -156,7 +164,7 @@ fn main() {
                     }
                     client.disconnect();
                     println!("--> Disconnected from server.");
-                },
+                }
                 "subscribe" => {
                     // subscribe qos topic_name
                     // send subscribe
@@ -166,30 +174,31 @@ fn main() {
                     }
 
                     let qos_str: Option<String> = user_input.get(1).and_then(|v| v.parse().ok());
-                    let qos = qos_str.clone().unwrap_or(String::from(""));
-                    
+                    let qos = qos_str.clone().unwrap_or_else(|| String::from(""));
+
                     let topic_name_str: Option<String> =
                         user_input.get(2).and_then(|v| v.parse().ok());
-                    let topic_name = topic_name_str.clone().unwrap_or(String::from(""));
-                    
+                    let topic_name = topic_name_str.clone().unwrap_or_else(|| String::from(""));
+
                     let packet_identifier = client.get_packet_identifier();
-                    let mut qos_vec: Vec<u8> = vec![]; 
-                    let mut topic_names: Vec<String> = vec![]; 
-                    if qos != "" { qos_vec.push(qos.parse().unwrap()); }
-                    else {
+                    let mut qos_vec: Vec<u8> = vec![];
+                    let mut topic_names: Vec<String> = vec![];
+                    if !qos.is_empty() {
+                        qos_vec.push(qos.parse().unwrap());
+                    } else {
                         println!("Non-existent qos value");
                         continue;
                     }
-                    if topic_name != "" { topic_names.push(topic_name.clone()); }
-                    else {
+                    if !topic_name.is_empty() {
+                        topic_names.push(topic_name.clone());
+                    } else {
                         println!("Non-existent topic name value");
                         continue;
                     }
-                    let packet =
-                        packet.suscribe( packet_identifier, topic_names, qos_vec);
-                    println!("--> Subscribe topic: {}",topic_name);
+                    let packet = packet.suscribe(packet_identifier, topic_names, qos_vec);
+                    println!("--> Subscribe topic: {}", topic_name);
                     client.send(packet.value());
-                },
+                }
                 "test" => {
                     println!("Test connection to localhost");
                     if !client.is_connected() {
@@ -240,7 +249,7 @@ fn main() {
                         println!(" --> Sending packet: {:?}", packet.value());
                         client.send(packet.value());
                     }
-                },
+                }
                 "test-p" => {
                     let packet_identifier = client.get_packet_identifier();
                     let packet = packet.publish(
@@ -251,9 +260,13 @@ fn main() {
                         "asasa".to_string(),
                         "asasa".to_string(),
                     );
-                    println!("--> publish topic: {} value: {}","asasa".to_string(), "asasa".to_string());
+                    println!(
+                        "--> publish topic: {} value: {}",
+                        "asasa".to_string(),
+                        "asasa".to_string()
+                    );
                     client.send(packet.value());
-                },
+                }
                 "test-connection" => {
                     if client.is_connected() {
                         println!(
@@ -264,14 +277,14 @@ fn main() {
                         println!("<-- Not connected to server");
                         continue;
                     }
-                },
+                }
                 "exit" => {
                     break;
                 }
                 _ => {
                     println!("Message not understood: {:?}", user_input);
                     continue;
-                },
+                }
             }
         } else {
             println!("Invalid command, to exit type: exit");
@@ -306,7 +319,10 @@ fn test_parser() {
 #[test]
 fn test_user_input() {
     let input_stdin = String::from("publish 0 0 0 topic_name some_message");
-    assert_eq!("publish 0 0 0 topic_name some_message", parser_str(input_stdin.clone()));
+    assert_eq!(
+        "publish 0 0 0 topic_name some_message",
+        parser_str(input_stdin.clone())
+    );
 }
 
 #[cfg(test)]
