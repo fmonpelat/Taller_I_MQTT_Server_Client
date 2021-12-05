@@ -81,7 +81,7 @@ impl Server {
             logger: Arc<Logger>,
             hash_server_connections: Arc<Mutex<HashServerConnections>>,
             hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
-            client_connections: HandleClientConnections,
+            mut client_connections: HandleClientConnections,
             tx_server: Sender<Vec<String>>,
         ) -> Result<()> {
             let mut buff = [0_u8; 1024];
@@ -103,7 +103,7 @@ impl Server {
                                     logger.clone(),
                                     hash_server_connections.clone(),
                                     hash_persistance_connections.clone(),
-                                    &client_connections,
+                                    &mut client_connections,
                                     tx_server.clone(),
                                     &mut _client_id,
                                 ) {
@@ -237,7 +237,7 @@ impl Server {
         logger: Arc<Logger>,
         hash_server_connections: Arc<Mutex<HashServerConnections>>,
         hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
-        client_connections: &HandleClientConnections,
+        client_connections: &mut HandleClientConnections,
         tx_server: Sender<Vec<String>>,
         client_id: &mut String,
     ) -> Result<String> {
@@ -247,13 +247,14 @@ impl Server {
         if packet_id == control_type::CONNECT as u8 {
             let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(buff.clone());
             let client_identifier: String = unvalued_packet.payload.client_identifier;
+            *client_id = client_identifier.clone();
             logger.debug(format!(
                 "Client Connection with Client identifier: {}, verifying that was connected...",
                 client_identifier
             ));
 
             if Server::get_id_persistance_connections(
-                client_identifier,
+                client_identifier.clone(),
                 hash_server_connections.clone(),
             )
             .unwrap()
@@ -262,6 +263,13 @@ impl Server {
                 // TODO: Client persistance
                 // TODO: verificar si el connect contiene el bit de clean session en 0.
                 // TODO: obtener client connections y pisar tx y rx con los guardados por el hash_server_connections
+                if unvalued_packet.header.clean_session() {
+                    let value = hash_server_connections.lock().unwrap();
+                    client_connections.tx = value.get(&client_id.clone().to_string()).expect(" Key not found").tx.clone();
+                    client_connections.rx = value.get(&client_id.clone().to_string()).expect(" Key not found").rx.clone();
+
+                }
+
                 return Err(Error::new(
                     ErrorKind::Other,
                     "Error, client already connected",
