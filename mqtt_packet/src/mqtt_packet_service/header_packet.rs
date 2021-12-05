@@ -219,14 +219,14 @@ mod tests {
 
     #[test]
     fn check_get_qos() {
-        let mut header = Header {
+        let header = Header {
             control_type: 0x00,
             control_flags: 0x00,
             remaining_length_0: vec![0],
         };
         assert_eq!(header.get_qos(), 0);
 
-        let mut header = Header {
+        let header = Header {
             control_type: 0x00,
             control_flags: 0x02,
             remaining_length_0: vec![0],
