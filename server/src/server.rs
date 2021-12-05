@@ -63,6 +63,7 @@ impl Server {
             server.rx_server.clone(),
             server.hash_topics.clone(),
             server.hash_server_connections.clone(),
+            server.logger.clone(),
         );
         server
     }
@@ -127,10 +128,10 @@ impl Server {
                         };
                     }
                     Err(_) => {
-                        println!(
+                        logger.debug(format!(
                             "An error occurred, terminating connection with {}",
                             stream.peer_addr()?
-                        );
+                        ));
                         stream.shutdown(Shutdown::Both)?;
                         break;
                     }
@@ -152,20 +153,20 @@ impl Server {
             .name("thread peer: ".to_string() + peer.to_string().as_str())
             .spawn(move || {
                 // connection succeeded
-                println!("Connection from {}", peer);
+                logger.debug(format!("Connection from {}", peer));
                 match _handle_client_(
                     stream,
-                    logger,
+                    logger.clone(),
                     hash_server_connections,
                     hash_persistance_connections,
                     handle_client_connections,
                     tx_server,
                 ) {
                     Ok(_) => {
-                        println!("Connection with {} closed", peer);
+                        logger.debug(format!("Connection with {} closed", peer));
                     }
                     Err(e) => {
-                        println!("Error: {}", e);
+                        logger.debug(format!("Error: {}", e));
                     }
                 }
                 //TODO listen to rx handle client connection to send
@@ -185,7 +186,8 @@ impl Server {
         let listener = TcpListener::bind(address)?;
         // accept connections and process them, spawning a new thread for each one
         self.logger.debug("start binding".to_string());
-        println!("Server listening on port {}", self.server_port);
+        self.logger
+            .debug(format!("Server listening on port {}", self.server_port));
 
         self.logger
             .info("starting listening to clients".to_string());
@@ -214,7 +216,7 @@ impl Server {
                 }
                 Err(e) => {
                     /* connection failed */
-                    println!("Error: {}", e);
+                    self.logger.debug(format!("Error: {}", e));
                     break;
                 }
             }
@@ -245,10 +247,10 @@ impl Server {
         if packet_id == control_type::CONNECT as u8 {
             let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(buff.clone());
             let client_identifier: String = unvalued_packet.payload.client_identifier;
-            println!(
+            logger.debug(format!(
                 "Client Connection with Client identifier: {}, verifying that was connected...",
                 client_identifier
-            );
+            ));
 
             if Server::get_id_persistance_connections(
                 client_identifier,
@@ -396,7 +398,7 @@ impl Server {
                 }
             }
             _ => {
-                println!("control type number: {:?}", control_type::PINGREQ);
+                logger.debug(format!("control type number: {:?}", control_type::PINGREQ));
                 logger.debug("Id not match with any control packet".to_string());
                 return Err(Error::new(
                     ErrorKind::Other,
@@ -425,6 +427,7 @@ impl Server {
         rx_server: Arc<Mutex<Receiver<Vec<String>>>>,
         hash_topics: Arc<Mutex<HashTopics>>,
         hash_server_connections: Arc<Mutex<HashServerConnections>>,
+        logger: Arc<Logger>,
     ) {
         let _handle = thread::Builder::new()
             .name("Thread: Message handler".to_string())
@@ -432,7 +435,7 @@ impl Server {
                 let rx_server_guard = rx_server.lock().unwrap();
                 match rx_server_guard.recv() {
                     Ok(msg) => {
-                        println!("Thread message handler received topic: {:?}", msg);
+                        logger.debug(format!("Thread message handler received topic: {:?}", msg));
                         let packet_type = msg[0].as_str();
                         match packet_type {
                             // si es publish debe tomar el array de hash topic, iterarlo y cada tx de ese array debe ejercutar send con el packet valuede un publish packet
@@ -472,7 +475,10 @@ impl Server {
                                             }
                                         });
                                 } else {
-                                    println!("Publish on server received a Topic that is is empty");
+                                    logger.debug(
+                                        "Publish on server received a Topic that is is empty"
+                                            .to_string(),
+                                    );
                                 }
                             }
                             // si es subscribe debe guardar el topic name en el hash de topic y asignar el tx obtenido mediante el peer addr sumistrado en msg con el hash de connection
@@ -500,22 +506,22 @@ impl Server {
                                             vector.push(tx.to_owned());
                                         });
                                 } else {
-                                    println!("Cannot find client Identified");
+                                    logger.debug("Cannot find client Identified".to_string());
                                 }
                             }
                             _ => {
-                                println!("Not received any packet type");
+                                logger.debug("Not received any packet type".to_string());
                             }
                         };
-                        println!("Thread message handler update topic hash");
+                        logger.debug("Thread message handler update topic hash".to_string());
                         for (key, value) in hash_topics.lock().unwrap().iter() {
-                            println!("{:?} - {:#?}", key, value);
-                            println!("{:?}", value);
-                            println!("printing following topics");
+                            logger.debug(format!("{:?} - {:#?}", key, value));
+                            logger.debug(format!("{:?}", value));
+                            logger.debug("printing following topics".to_string());
                         }
                     }
                     Err(e) => {
-                        println!("Thread message handler got an error: {:?}", e);
+                        logger.debug(format!("Thread message handler got an error: {:?}", e));
                         break;
                     }
                 };
