@@ -260,14 +260,28 @@ impl Server {
             .unwrap()
             {
                 logger.debug(format!("Client already connected clientId: {}", client_id));
-                // TODO: Client persistance
-                // TODO: verificar si el connect contiene el bit de clean session en 0.
-                // TODO: obtener client connections y pisar tx y rx con los guardados por el hash_server_connections
+                // Client Persistance Clean Session
                 if unvalued_packet.header.clean_session() {
                     let value = hash_server_connections.lock().unwrap();
-                    client_connections.tx = value.get(&client_id.clone().to_string()).expect(" Key not found").tx.clone();
-                    client_connections.rx = value.get(&client_id.clone().to_string()).expect(" Key not found").rx.clone();
-
+                    let old_client_connection = value.get(&client_id.clone().to_string());
+                    match old_client_connection {
+                        Some(old_client_connection) => {
+                            // setting old channel to new channel
+                            client_connections.tx = old_client_connection.tx.clone();
+                            client_connections.rx = old_client_connection.rx.clone();
+                            logger.debug(format!(
+                                "Client connection set with old channel for clientId: {}",
+                                client_id
+                            ));
+                        }
+                        None => {
+                            // if none is received there wasnt any connection with this client
+                            logger.debug(format!(
+                                "Clean session was asked but no connection was found for clientId: {}",
+                                client_id
+                            ));
+                        }
+                    };
                 }
 
                 return Err(Error::new(
@@ -497,7 +511,8 @@ impl Server {
                             "subscribe" => {
                                 // message = [ packet_type, client_id, packet_id, topic_name ]
                                 let client_id = msg[1].as_str();
-                                let _packet_id = (msg[2].as_bytes()[0] as u16)<<8 | msg[2].as_bytes()[1] as u16;
+                                let _packet_id = (msg[2].as_bytes()[0] as u16) << 8
+                                    | msg[2].as_bytes()[1] as u16;
                                 let topic = &msg[3];
 
                                 if !client_id.is_empty() {
