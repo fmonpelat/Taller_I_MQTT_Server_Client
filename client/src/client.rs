@@ -166,7 +166,7 @@ impl Client {
         self.server_port = port;
         self.username = username;
         self.password = password;
-        let keepalive_interval = 3;
+        let keepalive_interval = 20;
         match TcpStream::connect(self.server_host.to_string() + ":" + &self.server_port) {
             Ok(stream) => {
                 println!(

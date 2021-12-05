@@ -89,7 +89,7 @@ fn main() {
                     } else {
                         println!("Already connected!");
                     }
-                }
+                },
                 "publish" => {
                     // send publish
                     if !client.is_connected() {
@@ -140,65 +140,56 @@ fn main() {
                         }
                         None => println!("non-existent message value"),
                     }
-                    println!("try publish");
+                    // println!("try publish");
                     let packet_identifier = client.get_packet_identifier();
                     let packet =
-                        packet.publish(dup, qos, retain, packet_identifier, topic_name, message);
-                    println!("{:?}", packet.value());
+                        packet.publish(dup, qos, retain, packet_identifier, topic_name.clone(), message.clone());
+                    println!("--> publish topic: {} value: {}",topic_name, message);
+                    // println!("{:?}", packet.value());
                     client.send(packet.value());
-                }
-                "pingreq" => {
-                    // send publish
-                    if !client.is_connected() {
-                        println!("Not connected to server, please connect first");
-                        continue;
-                    }
-                    let packet = packet.pingreq();
-                    client.send(packet.value());
-                    println!("send pingreq");
-                }
+                },
                 "disconnect" => {
                     if !client.is_connected() {
                         println!("Not connected to server, please connect first");
                         continue;
                     }
                     client.disconnect();
-                }
+                },
                 "subscribe" => {
+                    // subscribe qos topic_name
                     // send subscribe
                     if !client.is_connected() {
                         println!("Not connected to server, please connect first");
                         continue;
                     }
 
-                    let qos1_str: Option<String> = user_input.get(1).and_then(|v| v.parse().ok());
-                    let mut qos1: u8 = 0;
-                    let mut qos_vec: Vec<u8> = Vec::new();
-                    let mut topic_names:Vec<String> = Vec::new();
-
-                    match qos1_str {
-                        Some(_) => {
-                            qos1 = user_input[1].trim().parse().expect("wrong value!");
-                            qos_vec.push(qos1);
-                        }
-                        None => println!("non-existent qos value"),
-                    }
-
-
-                    if user_input.len() > 2 {
-                        for topic_name in &user_input[3..user_input.len()]{
-                            topic_names.push(topic_name.to_string());
-                        }
-
-                    }
+                    let qos_str: Option<String> = user_input.get(1).and_then(|v| v.parse().ok());
+                    let qos = qos_str.clone().unwrap_or(String::from(""));
+                    
+                    let topic_name_str: Option<String> =
+                        user_input.get(2).and_then(|v| v.parse().ok());
+                    let topic_name = topic_name_str.clone().unwrap_or(String::from(""));
                     
                     println!("try subscribe");
                     let packet_identifier = client.get_packet_identifier();
+                    let mut qos_vec: Vec<u8> = vec![]; 
+                    let mut topic_names: Vec<String> = vec![]; 
+                    if qos != "" { qos_vec.push(qos.parse().unwrap()); }
+                    else {
+                        println!("non-existent qos value");
+                        continue;
+                    }
+                    if topic_name != "" { topic_names.push(topic_name.clone()); }
+                    else {
+                        println!("non-existent topic name value");
+                        continue;
+                    }
                     let packet =
                         packet.suscribe( packet_identifier, topic_names, qos_vec);
+                    println!("--> subscribe topic: {}",topic_name);
                     println!("{:?}", packet.value());
                     client.send(packet.value());
-                }
+                },
                 "test" => {
                     println!("test connection to localhost");
                     if !client.is_connected() {
@@ -248,7 +239,7 @@ fn main() {
                         println!("{:?}", packet.value());
                         client.send(packet.value());
                     }
-                }
+                },
                 "test-p" => {
                     println!("try publish");
                     let packet_identifier = client.get_packet_identifier();
@@ -262,7 +253,7 @@ fn main() {
                     );
                     println!("{:?}", packet.value());
                     client.send(packet.value());
-                }
+                },
                 "test-connection" => {
                     if client.is_connected() {
                         println!(
@@ -272,13 +263,13 @@ fn main() {
                     } else {
                         println!("Not connected to server");
                     }
-                }
+                },
                 "exit" => {
                     break;
                 }
                 _ => {
                     println!("Message not understood: {:?}", user_input);
-                }
+                },
             }
         } else {
             println!("Invalid command, to exit type: exit");
