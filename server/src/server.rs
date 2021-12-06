@@ -491,7 +491,11 @@ impl Server {
                                         .unwrap()
                                         .entry(topic.to_string())
                                         .and_modify(|vector| {
-                                            logger.debug(format!("Found {} subscriptors for topic: {}", vector.len(), topic));
+                                            logger.debug(format!(
+                                                "Found {} subscriptors for topic: {}",
+                                                vector.len(),
+                                                topic
+                                            ));
                                             for tx in vector {
                                                 let packet =
                                                     Packet::<VariableHeader, Payload>::new();
@@ -529,12 +533,12 @@ impl Server {
 
                                 if !client_id.is_empty() {
                                     let value = hash_server_connections
-                                                .lock()
-                                                .unwrap()
-                                                .get(client_id)
-                                                .unwrap()
-                                                .tx
-                                                .clone();
+                                        .lock()
+                                        .unwrap()
+                                        .get(client_id)
+                                        .unwrap()
+                                        .tx
+                                        .clone();
                                     let tx = &*value.lock().unwrap();
                                     hash_topics
                                         .lock()
