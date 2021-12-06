@@ -9,8 +9,8 @@ use mqtt_packet::mqtt_packet_service::header_packet::control_type;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
-use mqtt_packet::mqtt_packet_service::payload_packet::Payload;
-use mqtt_packet::mqtt_packet_service::variable_header_packet::VariableHeader;
+use mqtt_packet::mqtt_packet_service::payload_packet::{Payload, PublishPayload};
+use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader, VariableHeaderPublish};
 use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -111,7 +111,7 @@ impl Client {
             let packet = Packet::<VariableHeader, Payload>::new();
             let packet = packet.pingreq();
             let msg = packet.value();
-            println!("sending keepalive, locking stream");
+            println!("sending keepalive");
             stream
                 .lock()
                 .unwrap()
@@ -142,6 +142,7 @@ impl Client {
                         // send next keepalive
                         keepalive_timer = Instant::now();
                         *received = false;
+                        println!("received keepalive response from server");
                     } else {
                         // check if keepalive has timed out
                         if keepalive_timer.elapsed().as_secs() >= keepalive_interval as u64 {
@@ -240,7 +241,7 @@ impl Client {
                 match tpcstream.read(&mut buff) {
                     Ok(_size) => {
                         if _size > 0 {
-                            match buff[0] {
+                            match buff[0] & 0xF0 {
                                 control_type::CONNACK => {
                                     client_connection.store(true, Ordering::SeqCst);
                                     println!("Connack received! setting keepalive");
@@ -255,9 +256,10 @@ impl Client {
                                 }
                                 control_type::PUBLISH => {
                                     println!("Publish received!");
+                                    let unvalue = Packet::<VariableHeaderPublish, PublishPayload>::unvalue(buff.to_vec());
+                                    println!("<-- publish topic: {} value: {}", String::from_utf8_lossy(&unvalue.variable_header.topic_name), unvalue.payload.message);
                                 }
                                 control_type::PINGRESP => {
-                                    // println!("Ping response received!");
                                     let (lock, cvar) = &*keepalive_pair;
                                     let mut received = lock.lock().unwrap();
                                     *received = true;
@@ -266,6 +268,7 @@ impl Client {
                                 }
                                 control_type::SUBACK => {
                                     println!("Suback received!");
+                                    println!("<-- Succesfully subscribed to topic");
                                 }
                                 _ => println!("Unexpected reply: {:?}\n", buff),
                             }

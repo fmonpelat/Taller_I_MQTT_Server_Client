@@ -36,15 +36,21 @@ fn main() {
                     match host_str {
                         Some(_) => {
                             host = parser_str(user_input[1].to_string());
+                        },
+                        None => {
+                            println!("Non-existent host value");
+                            continue;
                         }
-                        None => println!("Non-existent host value"),
                     }
 
                     match port_str {
                         Some(_) => {
                             port = parser_str(user_input[2].to_string());
+                        },
+                        None => {
+                            println!("Non-existent port value");
+                            continue;
                         }
-                        None => println!("Non-existent port value"),
                     }
 
                     match username_str {
@@ -64,11 +70,11 @@ fn main() {
                     if !client.is_connected() {
                         // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
                         client
-                            .connect(host.clone(), port.clone(), username.clone(), password)
+                            .connect(host.clone(), port.clone(), username.clone(), password.clone())
                             .expect("Error connecting");
                         println!(
-                            "--> connect to server with host: {} port: {} username: {}",
-                            host, port, username
+                            "--> connect to server with host: {} port: {}",
+                            host, port
                         );
                         let client_identifier = client.get_id_client();
                         println!("--> Trying to connect with client id {}", client_identifier);
@@ -77,17 +83,17 @@ fn main() {
                         loop {
                             if client.is_connected() {
                                 println!(
-                                    "Connected to server with client id {}",
+                                    "--> Connected to server with client id {}",
                                     client_identifier
                                 );
                                 break;
                             }
                             if i > conn_retries {
-                                println!("Not connected to server");
+                                println!("--> Not connected to server");
                                 break;
                             }
                             i += 1;
-                            thread::sleep(time::Duration::from_millis(1000));
+                            thread::sleep(time::Duration::from_millis(2000));
                             println!("waiting for connection ... retries: {}/{}", i, conn_retries);
                         }
                     } else {
@@ -174,7 +180,7 @@ fn main() {
                     }
 
                     let qos_str: Option<String> = user_input.get(1).and_then(|v| v.parse().ok());
-                    let qos = qos_str.clone().unwrap_or_else(|| String::from(""));
+                    let qos: u8 = qos_str.clone().unwrap_or_else(|| String::from("")).parse().unwrap_or(0);
 
                     let topic_name_str: Option<String> =
                         user_input.get(2).and_then(|v| v.parse().ok());
@@ -183,12 +189,7 @@ fn main() {
                     let packet_identifier = client.get_packet_identifier();
                     let mut qos_vec: Vec<u8> = vec![];
                     let mut topic_names: Vec<String> = vec![];
-                    if !qos.is_empty() {
-                        qos_vec.push(qos.parse().unwrap());
-                    } else {
-                        println!("Non-existent qos value");
-                        continue;
-                    }
+                    qos_vec.push(qos);
                     if !topic_name.is_empty() {
                         topic_names.push(topic_name.clone());
                     } else {
@@ -213,7 +214,7 @@ fn main() {
                             .expect("Error connecting");
                         let client_identifier = client.get_id_client();
                         println!("--> Trying to connect with client id {}", client_identifier);
-                        println!("--> Send connect");
+                        println!("Send connect");
                         let mut i: usize = 0;
                         let conn_retries = client.get_connect_retries();
                         loop {
@@ -246,7 +247,7 @@ fn main() {
                             "hola".to_string(),
                             "hola2".to_string(),
                         );
-                        println!(" --> Sending packet: {:?}", packet.value());
+                        println!("Sending packet: {:?}", packet.value());
                         client.send(packet.value());
                     }
                 }

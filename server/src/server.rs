@@ -87,6 +87,9 @@ impl Server {
             let mut buff = [0_u8; 1024];
             let mut _client_id = String::new();
             Ok(loop {
+                stream
+                    .set_read_timeout(Some(Duration::from_millis(30)))
+                    .unwrap();
                 match stream.read(&mut buff) {
                     Ok(_size) => {
                         if _size > 0 {
@@ -128,16 +131,22 @@ impl Server {
                         };
                     }
                     Err(_) => {
-                        logger.debug(format!(
-                            "An error occurred, terminating connection with {}",
-                            stream.peer_addr()?
-                        ));
-                        stream.shutdown(Shutdown::Both)?;
-                        break;
+                        // logger.debug(format!(
+                        //     "An error occurred, terminating connection with {}",
+                        //     stream.peer_addr()?
+                        // ));
+                        // stream.shutdown(Shutdown::Both)?;
+                        // break;
                     }
                 }
 
                 // TODO, read rx channel of this thread and act like a proxy (write drectly to stream)
+                let client_rx = &*client_connections.rx.lock().unwrap();
+                if let Ok(msg) = client_rx.try_recv() {
+                    logger.debug("Received message from server through channel".to_string());
+                    stream.write_all(&msg)?;
+                }
+                // ends loop returns ok result
             })
         }
 
@@ -169,7 +178,6 @@ impl Server {
                         logger.debug(format!("Error: {}", e));
                     }
                 }
-                //TODO listen to rx handle client connection to send
             });
         handle
     }
@@ -231,6 +239,7 @@ impl Server {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn handle_packet(
         buff: Vec<u8>,
         stream: &mut TcpStream,
@@ -242,6 +251,7 @@ impl Server {
         client_id: &mut String,
     ) -> Result<String> {
         let packet_id = buff[0] & 0xF0;
+
         let peer_addr = stream.peer_addr()?;
 
         if packet_id == control_type::CONNECT as u8 {
@@ -254,7 +264,7 @@ impl Server {
             ));
 
             if Server::get_id_persistance_connections(
-                client_identifier.clone(),
+                client_identifier,
                 hash_server_connections.clone(),
             )
             .unwrap()
@@ -263,7 +273,7 @@ impl Server {
                 // Client Persistance Clean Session
                 if unvalued_packet.header.clean_session() {
                     let value = hash_server_connections.lock().unwrap();
-                    let old_client_connection = value.get(&client_id.clone().to_string());
+                    let old_client_connection = value.get(&client_id.clone());
                     match old_client_connection {
                         Some(old_client_connection) => {
                             // setting old channel to new channel
@@ -447,6 +457,7 @@ impl Server {
         let hash = hash_topics.lock().unwrap();
         Ok(hash.contains_key(topic))
     }
+
     fn message_handler(
         _tx_server: Arc<Mutex<Sender<Vec<String>>>>,
         rx_server: Arc<Mutex<Receiver<Vec<String>>>>,
@@ -466,9 +477,9 @@ impl Server {
                             // si es publish debe tomar el array de hash topic, iterarlo y cada tx de ese array debe ejercutar send con el packet valuede un publish packet
                             "publish" => {
                                 // message = [ packet_type, dup, qos, retain, topic, message ]
-                                let dup = msg[1].as_bytes()[0];
-                                let qos = msg[2].as_bytes()[0];
-                                let retain = msg[3].as_bytes()[0];
+                                let dup = msg[1].parse::<u8>().unwrap();
+                                let qos = msg[2].parse::<u8>().unwrap();
+                                let retain = msg[3].parse::<u8>().unwrap();
                                 let topic = &msg[4];
                                 let message = &msg[5];
                                 // create new packet identifier
@@ -480,6 +491,7 @@ impl Server {
                                         .unwrap()
                                         .entry(topic.to_string())
                                         .and_modify(|vector| {
+                                            logger.debug(format!("Found {} subscriptors for topic: {}", vector.len(), topic));
                                             for tx in vector {
                                                 let packet =
                                                     Packet::<VariableHeader, Payload>::new();
@@ -516,21 +528,22 @@ impl Server {
                                 let topic = &msg[3];
 
                                 if !client_id.is_empty() {
-                                    hash_topics
-                                        .lock()
-                                        .unwrap()
-                                        .entry(topic.to_string())
-                                        .and_modify(|vector| {
-                                            let value = hash_server_connections
+                                    let value = hash_server_connections
                                                 .lock()
                                                 .unwrap()
                                                 .get(client_id)
                                                 .unwrap()
                                                 .tx
                                                 .clone();
-                                            let tx = &*value.lock().unwrap();
+                                    let tx = &*value.lock().unwrap();
+                                    hash_topics
+                                        .lock()
+                                        .unwrap()
+                                        .entry(topic.to_string())
+                                        .and_modify(|vector| {
                                             vector.push(tx.to_owned());
-                                        });
+                                        })
+                                        .or_insert(vec![tx.to_owned()]);
                                 } else {
                                     logger.debug("Cannot find client Identified".to_string());
                                 }
@@ -539,19 +552,21 @@ impl Server {
                                 logger.debug("Not received any packet type".to_string());
                             }
                         };
-                        logger.debug("Thread message handler update topic hash".to_string());
-                        for (key, value) in hash_topics.lock().unwrap().iter() {
-                            logger.debug(format!("{:?} - {:#?}", key, value));
-                            logger.debug(format!("{:?}", value));
-                            logger.debug("printing following topics".to_string());
-                        }
+                        // logger.debug("Thread message handler update topic hash".to_string());
+                        // for (key, value) in hash_topics.lock().unwrap().iter() {
+                        //     logger.debug(format!("{:?} - {:#?}", key, value));
+                        //     logger.debug(format!("{:?}", value));
+                        //     logger.debug("printing following topics".to_string());
+                        // }
+                        // println!("ending printing topics");
                     }
                     Err(e) => {
                         logger.debug(format!("Thread message handler got an error: {:?}", e));
                         break;
                     }
                 };
-                thread::sleep(Duration::from_millis(50));
+                drop(rx_server_guard);
+                thread::sleep(Duration::from_millis(10));
             });
     }
 }
