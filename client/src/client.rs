@@ -10,7 +10,9 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
 use mqtt_packet::mqtt_packet_service::payload_packet::{Payload, PublishPayload};
-use mqtt_packet::mqtt_packet_service::variable_header_packet::{VariableHeader, VariableHeaderPublish};
+use mqtt_packet::mqtt_packet_service::variable_header_packet::{
+    VariableHeader, VariableHeaderPublish,
+};
 use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -98,7 +100,9 @@ impl Client {
         let packet = Packet::<VariableHeader, Payload>::new();
         let packet = packet.disconnect();
         let mut stream = stream.lock().unwrap();
-        stream.write_all(&packet.value()).expect("Cannot send packet");
+        stream
+            .write_all(&packet.value())
+            .expect("Cannot send packet");
         stream.shutdown(std::net::Shutdown::Both).unwrap();
     }
 
@@ -256,8 +260,17 @@ impl Client {
                                 }
                                 control_type::PUBLISH => {
                                     println!("Publish received!");
-                                    let unvalue = Packet::<VariableHeaderPublish, PublishPayload>::unvalue(buff.to_vec());
-                                    println!("<-- publish topic: {} value: {}", String::from_utf8_lossy(&unvalue.variable_header.topic_name), unvalue.payload.message);
+                                    let unvalue =
+                                        Packet::<VariableHeaderPublish, PublishPayload>::unvalue(
+                                            buff.to_vec(),
+                                        );
+                                    println!(
+                                        "<-- publish topic: {} value: {}",
+                                        String::from_utf8_lossy(
+                                            &unvalue.variable_header.topic_name
+                                        ),
+                                        unvalue.payload.message
+                                    );
                                 }
                                 control_type::PINGRESP => {
                                     let (lock, cvar) = &*keepalive_pair;

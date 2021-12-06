@@ -36,7 +36,7 @@ fn main() {
                     match host_str {
                         Some(_) => {
                             host = parser_str(user_input[1].to_string());
-                        },
+                        }
                         None => {
                             println!("Non-existent host value");
                             continue;
@@ -46,7 +46,7 @@ fn main() {
                     match port_str {
                         Some(_) => {
                             port = parser_str(user_input[2].to_string());
-                        },
+                        }
                         None => {
                             println!("Non-existent port value");
                             continue;
@@ -70,12 +70,14 @@ fn main() {
                     if !client.is_connected() {
                         // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
                         client
-                            .connect(host.clone(), port.clone(), username.clone(), password.clone())
+                            .connect(
+                                host.clone(),
+                                port.clone(),
+                                username.clone(),
+                                password.clone(),
+                            )
                             .expect("Error connecting");
-                        println!(
-                            "--> connect to server with host: {} port: {}",
-                            host, port
-                        );
+                        println!("--> connect to server with host: {} port: {}", host, port);
                         let client_identifier = client.get_id_client();
                         println!("--> Trying to connect with client id {}", client_identifier);
                         let mut i: usize = 0;
@@ -180,7 +182,11 @@ fn main() {
                     }
 
                     let qos_str: Option<String> = user_input.get(1).and_then(|v| v.parse().ok());
-                    let qos: u8 = qos_str.clone().unwrap_or_else(|| String::from("")).parse().unwrap_or(0);
+                    let qos: u8 = qos_str
+                        .clone()
+                        .unwrap_or_else(|| String::from(""))
+                        .parse()
+                        .unwrap_or(0);
 
                     let topic_name_str: Option<String> =
                         user_input.get(2).and_then(|v| v.parse().ok());
