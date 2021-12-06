@@ -51,9 +51,33 @@ pub trait PacketHeader {
     fn value(&self) -> Vec<u8>;
     fn unvalue(x: Vec<u8>, readed: &mut usize) -> Header;
     fn get_remaining_length(x: Vec<u8>, readed: &mut usize) -> Vec<u8>;
+    fn get_qos(&self) -> u8;
+    fn get_dup(&self) -> bool;
+    fn get_retain(&self) -> bool;
+    fn clean_session(&self) -> bool;
 }
 
 impl PacketHeader for Header {
+    fn clean_session(&self) -> bool {
+        self.control_flags & 0x01 == 0
+    }
+
+    fn get_qos(&self) -> u8 {
+        let mut qos = 0;
+        if self.control_flags & 0x02 == 0x02 {
+            qos = 1;
+        }
+        qos
+    }
+
+    fn get_dup(&self) -> bool {
+        self.control_flags & 0x08 == 0x08
+    }
+
+    fn get_retain(&self) -> bool {
+        self.control_flags & 0x01 == 0x01
+    }
+
     //  this function is used to get the bytes of the header packet
     //
     fn value(&self) -> Vec<u8> {
@@ -174,6 +198,58 @@ impl PacketHeader for Header {
 mod tests {
     use super::*;
     use std::panic;
+
+    #[test]
+    fn check_clean_session() {
+        let mut header = Header {
+            control_type: 0x00,
+            control_flags: 0x00,
+            remaining_length_0: vec![0],
+        };
+        assert_eq!(header.clean_session(), true);
+        header.control_flags = 0x01;
+        assert_eq!(header.clean_session(), false);
+    }
+    
+    #[test]
+    fn get_retain() {
+        let mut header = Header {
+            control_type: 0x00,
+            control_flags: 0x00,
+            remaining_length_0: vec![0],
+        };
+        assert_eq!(header.get_retain(), false);
+        header.control_flags = 0x01;
+        assert_eq!(header.get_retain(), true);
+    }
+    #[test]
+    fn check_get_dup() {
+        let mut header = Header {
+            control_type: 0x00,
+            control_flags: 0x00,
+            remaining_length_0: vec![0],
+        };
+        assert_eq!(header.get_dup(), false);
+        header.control_flags = 0x08;
+        assert_eq!(header.get_dup(), true);
+    }
+
+    #[test]
+    fn check_get_qos() {
+        let header = Header {
+            control_type: 0x00,
+            control_flags: 0x00,
+            remaining_length_0: vec![0],
+        };
+        assert_eq!(header.get_qos(), 0);
+
+        let header = Header {
+            control_type: 0x00,
+            control_flags: 0x02,
+            remaining_length_0: vec![0],
+        };
+        assert_eq!(header.get_qos(), 1);
+    }
 
     #[test]
     fn check_get_remaining_length() {

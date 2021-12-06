@@ -271,7 +271,7 @@ impl PacketPayloadSuscribe for SuscribePayload {
         let mut i: usize = 0;
         self.topic_filter.iter().for_each(|x| {
             let x_ = (x.len() as u16).to_be_bytes();
-            payload_vec.extend(x_.iter()); // extend payload_vec with topic_filter[i] length
+            payload_vec.extend(x_); // extend payload_vec with topic_filter[i] length
             payload_vec.extend(x.as_bytes()); // extend payload_vec with topic_filter[i]
             payload_vec.push(self.qos[i] & 0x03); // extend payload_vec with qos[i] (ensuring that we use only the first 2 bits)
             i += 1;
