@@ -7,24 +7,24 @@ use std::fs::File;
 use std::io::{BufReader, Error, ErrorKind, Read, Result};
 
 pub fn get_contents(file_name: &str) -> Result<String> {
-    let file = File::open(file_name).expect(&format!("file not found: {}", file_name));
+    let file = File::open(file_name).unwrap_or_else(|_| panic!("file not found: {}", file_name));
     let mut buf_reader = BufReader::new(file);
     let mut contents = String::new();
     buf_reader.read_to_string(&mut contents)?;
-    return Ok(contents);
+    Ok(contents)
 }
 
 pub fn load_config(file_name: &str) -> HashMap<String, String> {
     let mut hash_config: HashMap<String, String> = HashMap::new();
     if let Ok(contents) = get_contents(file_name) {
-        let lines: Vec<String> = contents.split("\n").map(|s: &str| s.to_string()).collect();
+        let lines: Vec<String> = contents.split('\n').map(|s: &str| s.to_string()).collect();
         let mut line_vec: Vec<&str> = vec![];
         for line in &lines {
             line_vec = line.split(": ").collect();
             hash_config.insert(line_vec[0].to_string(), line_vec[1].to_string());
         }
     }
-    return hash_config;
+    hash_config
 }
 
 fn main() -> Result<()> {
