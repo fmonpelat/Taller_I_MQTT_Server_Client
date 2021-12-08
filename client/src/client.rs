@@ -47,7 +47,7 @@ impl Client {
             .collect();
         let mut rng = rand::thread_rng();
         let packet_identifier: u16 = rng.gen();
-        let connect_retries: usize = 10;
+        let connect_retries: usize = 20;
         let keepalive_pair = Arc::new((Mutex::new(false), Condvar::new()));
 
         Client {

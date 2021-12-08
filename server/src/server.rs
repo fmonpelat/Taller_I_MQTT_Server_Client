@@ -88,8 +88,7 @@ impl Server {
             let mut _client_id = String::new();
             Ok(loop {
                 stream
-                    .set_read_timeout(Some(Duration::from_millis(30)))
-                    .unwrap();
+                    .set_read_timeout(Some(Duration::from_millis(30)))?;
                 match stream.read(&mut buff) {
                     Ok(_size) => {
                         if _size > 0 {
@@ -217,6 +216,7 @@ impl Server {
                         this.hash_persistance_connections.clone(),
                         tx.clone(),
                     );
+                    // TODO: verificar si _handle dio error
                     self.hash_persistance_connections
                         .lock()
                         .unwrap()
