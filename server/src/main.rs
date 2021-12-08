@@ -1,15 +1,26 @@
+mod file_loader;
 mod logger;
 mod server;
-
+use crate::file_loader::load_contents;
 use crate::logger::{Logger, Logging};
 use crate::server::Server;
+use std::io::{Error, ErrorKind, Result};
 
-fn main() -> Result<(), ()> {
-    let file_name = "../log.txt";
-    let logger = Logger::new(file_name, true);
+fn main() -> Result<()> {
+    let file_config = "src/config.yaml";
+    let config = load_contents(file_config);
+    let host = config
+        .get("host")
+        .unwrap_or_else(|| panic!("Cannot found host in config"));
+    let port = config
+        .get("port")
+        .unwrap_or_else(|| panic!("Cannot found port in config"));
+    let logfile = config
+        .get("logfile")
+        .unwrap_or_else(|| panic!("Cannot found logfile in config"));
+    let logger = Logger::new(logfile, true);
 
-    // TODO: leer de config.yaml y configurar el server
-    let server = Server::new("0.0.0.0".to_owned(), "3333".to_owned(), file_name);
+    let server = Server::new(host.to_owned(), port.to_owned(), logfile);
 
     match server.listening() {
         Ok(_) => {
@@ -17,7 +28,7 @@ fn main() -> Result<(), ()> {
         }
         Err(e) => {
             logger.info(format!("Unexpected error{:?}", e));
-            return Err(());
+            return Err(Error::new(ErrorKind::Other, "Error server"));
         }
     }
     Ok(())
@@ -25,6 +36,7 @@ fn main() -> Result<(), ()> {
 
 #[cfg(test)]
 mod tests {
+
     #[test]
     fn test_sample_server() {
         assert_eq!(1, 1)
