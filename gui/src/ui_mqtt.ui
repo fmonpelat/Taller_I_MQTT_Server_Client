@@ -15,6 +15,8 @@
       <object class="GtkBox">
         <property name="visible">True</property>
         <property name="can-focus">False</property>
+        <property name="margin-left">30</property>
+        <property name="margin-right">30</property>
         <property name="margin-top">2</property>
         <property name="orientation">vertical</property>
         <child>
@@ -174,7 +176,7 @@ To start using the application please connect to server first</property>
               <placeholder/>
             </child>
             <child>
-              <object class="GtkCheckButton" id="check_connect_secure">
+              <object class="GtkCheckButton" id="check_connect_secured">
                 <property name="label" translatable="yes">Connect secure</property>
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
@@ -329,24 +331,66 @@ To start using the application please connect to server first</property>
           </packing>
         </child>
         <child>
-          <object class="GtkButton" id="connect_button">
-            <property name="label" translatable="yes">Connect</property>
+          <placeholder/>
+        </child>
+        <child>
+          <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="can-focus">True</property>
-            <property name="receives-default">True</property>
-            <property name="margin-start">301</property>
-            <property name="margin-end">488</property>
-            <property name="margin-top">30</property>
-            <property name="margin-bottom">34</property>
+            <property name="can-focus">False</property>
+            <property name="margin-start">170</property>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <object class="GtkButton" id="connect_button">
+                <property name="label" translatable="yes">Connect</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+                <property name="margin-right">20</property>
+                <property name="margin-top">30</property>
+                <property name="margin-bottom">34</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkSpinner" id="connect_spinner">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="margin-start">10</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="connect_text">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="margin-start">10</property>
+                <property name="label" translatable="yes">label</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">3</property>
+              </packing>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
           </object>
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">5</property>
+            <property name="position">6</property>
           </packing>
-        </child>
-        <child>
-          <placeholder/>
         </child>
         <child>
           <placeholder/>
