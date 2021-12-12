@@ -179,9 +179,20 @@ impl Client {
                     self.server_port
                 );
 
-                let packet = Packet::<VariableHeader, Payload>::new();
-                let packet = packet.connect(self.client_identifier.clone());
+                let mut packet = Packet::<VariableHeader, Payload>::new();
 
+
+                if self.username.is_empty() || self.password.is_empty() {
+                    println!("No username provided, skipping username/password");
+                    packet = packet.connect(self.client_identifier.clone());
+                } else {
+                    println!("Connecting with credentials");
+                    packet = packet.connect_with_credentials(
+                        self.client_identifier.clone(),
+                        self.username.clone(),
+                        self.password.clone(),
+                    );
+                }
                 self.send(packet.value());
 
                 let stream_ = Arc::new(Mutex::new(stream));

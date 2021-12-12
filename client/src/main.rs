@@ -28,10 +28,10 @@ fn main() {
                     let password_str: Option<String> =
                         user_input.get(4).and_then(|v| v.parse().ok());
 
-                    let mut host: String = String::from("");
-                    let mut port: String = String::from("");
-                    let mut username: String = String::from("");
-                    let mut password: String = String::from("");
+                    let host: String;
+                    let port: String;
+                    let mut username: String = String::new();
+                    let mut password: String = String::new();
 
                     match host_str {
                         Some(_) => {
@@ -214,8 +214,8 @@ fn main() {
                             .connect(
                                 "localhost".to_string(),
                                 "3333".to_string(),
-                                "test".to_string(),
-                                "test".to_string(),
+                                "".to_string(),
+                                "".to_string(),
                             )
                             .expect("Error connecting");
                         let client_identifier = client.get_id_client();
