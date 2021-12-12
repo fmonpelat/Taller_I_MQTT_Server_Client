@@ -181,11 +181,7 @@ impl PacketPayload for Payload {
             .iter()
             .map(|x| {
                 let x_ = (x.to_string().len() as u16).to_be_bytes();
-                payload_vec.extend(if !x.to_string().is_empty() {
-                    x_.iter()
-                } else {
-                    [].iter()
-                });
+                payload_vec.extend(x_.iter());
                 payload_vec.extend(x.to_string().as_bytes());
                 x.to_string()
             })
@@ -346,7 +342,6 @@ mod tests {
             qos: vec![0, 1],
         };
         let value = payload.value();
-        println!("value: {:?}", value);
         assert_eq!(value.len(), topic1.len() + topic2.len() + 4 + 2); // 4 bytes for topic_filter length and 2 bytes for qos
         assert_eq!((value[0] + value[1]) as u8, topic1.len() as u8);
         assert_eq!(
@@ -369,7 +364,6 @@ mod tests {
         assert_eq!(value[5 + topic1.len() as usize + topic2_len as usize], 1); // qos topic2 is 1
         let readed = &mut 0;
         let payload_ = SuscribePayload::unvalue(value, readed);
-        println!("payload: {:?}", payload_);
         assert!(payload.topic_filter == payload_.topic_filter);
         assert!(payload.qos == payload_.qos);
     }
@@ -409,6 +403,24 @@ mod tests {
         assert_eq!(payload.user_name, unvalue.user_name);
         assert_eq!(payload.password, unvalue.password);
         assert_eq!(readed, value.len());
+
+        let payload = Payload {
+            client_identifier: client_identifier.to_string(),
+            will_topic: "".to_string(),
+            will_message: "".to_string(),
+            user_name: "user_name_test".to_string(),
+            password: "password_test".to_string(),
+        };
+        let value: Vec<u8> = payload.value();
+        let mut readed = 0;
+        let unvalue = Payload::unvalue(value.clone(), &mut readed);
+        assert_eq!(payload.client_identifier, unvalue.client_identifier);
+        assert_eq!(payload.will_topic, unvalue.will_topic);
+        assert_eq!(payload.will_message, unvalue.will_message);
+        assert_eq!(payload.user_name, unvalue.user_name);
+        assert_eq!(payload.password, unvalue.password);
+        assert_eq!(readed, value.len());
+
     }
 
     #[test]

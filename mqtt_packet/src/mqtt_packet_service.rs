@@ -565,6 +565,7 @@ impl<T, P> ClientPacket for Packet<T, P> {
     /// Creates a Connect packet with credentials
     fn connect_with_credentials(&self, client_identifier: String, username: String, password: String) -> Packet<VariableHeader, Payload> {
         let mut payload = Payload::default();
+        payload.client_identifier = client_identifier.clone();
         payload.user_name = username;
         payload.password = password;
         let mut packet = self.connect(client_identifier);
