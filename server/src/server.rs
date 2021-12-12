@@ -301,7 +301,7 @@ impl Server {
                     },
                     None => {
                         logger.debug(format!(
-                            "User {} not found in hashmap",
+                            "User {} not found in server credential file",
                             user
                         ));
                         return Err(Error::new(
