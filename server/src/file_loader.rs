@@ -12,9 +12,10 @@ pub fn get_contents(file_name: &str) -> Result<String> {
 pub fn load_contents(file_name: &str) -> HashMap<String, String> {
     let mut hash_config: HashMap<String, String> = HashMap::new();
     if let Ok(contents) = get_contents(file_name) {
-        let lines: Vec<String> = contents.split('\n')
+        let lines: Vec<String> = contents
+            .split('\n')
             .map(|s: &str| s.to_string())
-            .filter(|lines| !lines.starts_with("#"))
+            .filter(|lines| !lines.starts_with('#'))
             .collect();
         let mut line_vec: Vec<&str>;
         for line in &lines {
@@ -47,7 +48,10 @@ mod tests {
         hash_config_example.insert("logfile".to_string(), "../log.txt".to_string());
         hash_config_example.insert("port".to_string(), "3333".to_string());
         hash_config_example.insert("host".to_string(), "localhost".to_string());
-        hash_config_example.insert("credentials_file".to_string(), "../credentials.yaml".to_string());
+        hash_config_example.insert(
+            "credentials_file".to_string(),
+            "../credentials.yaml".to_string(),
+        );
 
         let file_name = "src/config.yaml";
         let hash_config = load_contents(file_name);
