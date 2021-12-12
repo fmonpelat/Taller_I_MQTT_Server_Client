@@ -293,7 +293,11 @@ impl Client {
                                 control_type::SUBACK => {
                                     println!("Suback received!");
                                     println!("<-- Succesfully subscribed to topic");
-                                }
+                                },
+                                control_type::UNSUBACK => {
+                                    println!("Unsuback received!");
+                                    println!("<-- Succesfully unsubscribed from topic");
+                                },
                                 _ => println!("Unexpected reply: {:?}\n", buff),
                             }
                         }
