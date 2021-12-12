@@ -68,16 +68,21 @@ fn main() {
                     }
 
                     if !client.is_connected() {
-                        // TODO: agregar en el client.connect(host, port, username, password) dentro del connect que seteen esos datos sobre el struct
-                        client
-                            .connect(
+                        match client.connect(
                                 host.clone(),
                                 port.clone(),
                                 username.clone(),
                                 password.clone(),
-                            )
-                            .expect("Error connecting");
-                        println!("--> connect to server with host: {} port: {}", host, port);
+                        ) {
+                            Ok(_) => {
+                                println!("--> connect to server with host: {} port: {}", host, port);
+                            }
+                            Err(_) => {
+                                println!("--> Error connecting with host: {} port: {}", host, port);
+                                continue;
+                            }
+                        };
+                            
                         let client_identifier = client.get_id_client();
                         println!("--> Trying to connect with client id {}", client_identifier);
                         let mut i: usize = 0;
@@ -90,7 +95,7 @@ fn main() {
                                 );
                                 break;
                             }
-                            if i > conn_retries {
+                            if i >= conn_retries {
                                 println!("--> Not connected to server");
                                 break;
                             }

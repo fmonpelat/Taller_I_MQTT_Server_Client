@@ -183,10 +183,10 @@ impl Client {
 
 
                 if self.username.is_empty() || self.password.is_empty() {
-                    println!("No username provided, skipping username/password");
+                    println!("No username provided, skipping username/password for client {}", self.client_identifier);
                     packet = packet.connect(self.client_identifier.clone());
                 } else {
-                    println!("Connecting with credentials");
+                    println!("Connecting with credentials for client {}", self.client_identifier);
                     packet = packet.connect_with_credentials(
                         self.client_identifier.clone(),
                         self.username.clone(),
