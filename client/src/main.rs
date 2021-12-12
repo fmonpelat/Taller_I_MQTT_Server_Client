@@ -107,7 +107,8 @@ fn main() {
                         println!("--> Already connected!");
                         continue;
                     }
-                }
+                },
+                
                 "publish" => {
                     // send publish
                     if !client.is_connected() {
@@ -169,7 +170,8 @@ fn main() {
                     );
                     println!("--> publish topic: {} value: {}", topic_name, message);
                     client.send(packet.value());
-                }
+                },
+                
                 "disconnect" => {
                     if !client.is_connected() {
                         println!(" <-- Not connected to server. Please connect first");
@@ -177,7 +179,8 @@ fn main() {
                     }
                     client.disconnect();
                     println!("--> Disconnected from server.");
-                }
+                },
+
                 "subscribe" => {
                     // subscribe qos topic_name
                     // send subscribe
@@ -210,7 +213,34 @@ fn main() {
                     let packet = packet.suscribe(packet_identifier, topic_names, qos_vec);
                     println!("--> Subscribe topic: {}", topic_name);
                     client.send(packet.value());
-                }
+                },
+
+                "unsubscribe" => {
+                    // unsubscribe topic_name
+                    // send unsubscribe
+                    if !client.is_connected() {
+                        println!(" <-- Not connected to server, please connect first");
+                        continue;
+                    }
+
+                    let topic_name_str: Option<String> =
+                        user_input.get(1).and_then(|v| v.parse().ok());
+                    let topic_name = topic_name_str.clone().unwrap_or_else(|| String::from(""));
+
+                    if topic_name.is_empty() {
+                        println!("Non-existent topic name value");
+                        continue;
+                    }
+
+                    let packet_identifier = client.get_packet_identifier();
+                    let mut topic_names: Vec<String> = vec![];
+                    topic_names.push(topic_name.clone());
+                    
+                    let packet = packet.unsubscribe(packet_identifier, topic_names);
+                    println!("--> Unsubscribe topic: {}", topic_name);
+                    client.send(packet.value());
+                },
+
                 "test" => {
                     println!("Test connection to localhost");
                     if !client.is_connected() {
@@ -249,19 +279,39 @@ fn main() {
                         continue;
                     }
                     if client.is_connected() {
+                        // // test publish
+                        // let packet_identifier = client.get_packet_identifier();
+                        // let packet = packet.publish(
+                        //     0,
+                        //     0,
+                        //     0,
+                        //     packet_identifier,
+                        //     "hola".to_string(),
+                        //     "hola2".to_string(),
+                        // );
+                        // println!("Sending packet: {:?}", packet.value());
+                        // client.send(packet.value());
+
+                        // // test subscribe
+                        // let packet_identifier = client.get_packet_identifier();
+                        // let qos_vec: Vec<u8> = vec![0];
+                        // let topic_name = "test1".to_string();
+                        // let topic_names: Vec<String> = vec![topic_name.clone()];
+                        // let packet = packet.suscribe(packet_identifier, topic_names, qos_vec);
+                        // println!("--> Subscribe topic: {}", topic_name);
+                        // client.send(packet.value());
+
+                        // test unsubscribe
+                        let topic_name = "test1".to_string();
                         let packet_identifier = client.get_packet_identifier();
-                        let packet = packet.publish(
-                            0,
-                            0,
-                            0,
-                            packet_identifier,
-                            "hola".to_string(),
-                            "hola2".to_string(),
-                        );
-                        println!("Sending packet: {:?}", packet.value());
+                        let topic_names: Vec<String> = vec![topic_name.clone()];
+                        let packet = packet.unsubscribe(packet_identifier, topic_names);
+                        println!("--> Unsubscribe topic: {}", topic_name);
                         client.send(packet.value());
+
                     }
-                }
+                },
+                
                 "test-p" => {
                     let packet_identifier = client.get_packet_identifier();
                     let packet = packet.publish(
@@ -278,7 +328,8 @@ fn main() {
                         "asasa".to_string()
                     );
                     client.send(packet.value());
-                }
+                },
+
                 "test-connection" => {
                     if client.is_connected() {
                         println!(
@@ -289,14 +340,16 @@ fn main() {
                         println!("<-- Not connected to server");
                         continue;
                     }
-                }
+                },
+
                 "exit" => {
                     break;
-                }
+                },
+
                 _ => {
                     println!("Message not understood: {:?}", user_input);
                     continue;
-                }
+                },
             }
         } else {
             println!("Invalid command, to exit type: exit");
