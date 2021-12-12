@@ -485,7 +485,7 @@ impl Server {
                 topics.iter().for_each(
                     |topic| {
                         let msg_server = vec![
-                            "unsuscribe".to_string(),
+                            "unsubscribe".to_string(),
                             client_id.to_string(),
                             packet_identifier.to_string(),
                             topic.to_string(),
@@ -669,7 +669,7 @@ impl Server {
                                 logger.debug(format!("Unsubscribed topic_name: {} for client id: {}", topic, client_id));
                             },
                             _ => {
-                                logger.debug("Not received any packet type".to_string());
+                                logger.debug(format!("Not received any known packet type, received: {}", packet_type));
                             }
                         };
                         // logger.debug("Thread message handler update topic hash".to_string());
