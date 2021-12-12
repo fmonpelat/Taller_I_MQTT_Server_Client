@@ -1,3 +1,4 @@
+use crate::file_loader::load_contents;
 use crate::logger::{Logger, Logging};
 use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
 use mqtt_packet::mqtt_packet_service::header_packet::{control_type, PacketHeader};
@@ -20,6 +21,7 @@ use std::time::Duration;
 type HashPersistanceConnections = HashMap<String, JoinHandle<()>>; // la clave es el ip address
 type HashServerConnections = HashMap<String, HandleClientConnections>; // la clave es el client_id de mqtt
 type HashTopics = HashMap<String, Vec<Sender<Vec<u8>>>>;
+type HashCredentials = HashMap<String, String>;
 #[derive(Clone)]
 pub struct Server {
     server_address: Arc<String>,
@@ -30,6 +32,7 @@ pub struct Server {
     hash_topics: Arc<Mutex<HashTopics>>,
     tx_server: Arc<Mutex<Sender<Vec<String>>>>,
     rx_server: Arc<Mutex<Receiver<Vec<String>>>>,
+    hash_credentials: Arc<Mutex<HashCredentials>>,
 }
 #[derive(Clone, Debug)]
 pub struct HandleClientConnections {
@@ -41,6 +44,10 @@ pub struct HandleClientConnections {
 #[allow(clippy::unit_arg)]
 impl Server {
     pub fn new(server_address: String, server_port: String, file_source: &str) -> Server {
+        // crear hash de credentials como username => password
+        let file_config = "src/credential.yaml";
+        let mut hash_credentials = load_contents(file_config);
+        
         let hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>> =
             Arc::new(Mutex::new(HashMap::new()));
         let hash_server_connections: Arc<Mutex<HashServerConnections>> =
@@ -57,6 +64,7 @@ impl Server {
             hash_topics,
             tx_server: Arc::new(Mutex::new(tx_server)),
             rx_server: Arc::new(Mutex::new(rx_server)),
+            hash_credentials: Arc::new(Mutex::new(hash_credentials)),
         };
         let _handle = Server::message_handler(
             server.tx_server.clone(),
@@ -74,6 +82,7 @@ impl Server {
         logger: Arc<Logger>,
         hash_server_connections: Arc<Mutex<HashServerConnections>>,
         hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
+        hash_credentials: Arc<Mutex<HashCredentials>>,
         tx_server: Sender<Vec<String>>,
     ) -> Result<JoinHandle<()>> {
         fn _handle_client_(
@@ -105,6 +114,7 @@ impl Server {
                                     logger.clone(),
                                     hash_server_connections.clone(),
                                     hash_persistance_connections.clone(),
+                                    hash_credentials.clone(),
                                     &mut client_connections,
                                     tx_server.clone(),
                                     &mut _client_id,
@@ -214,6 +224,7 @@ impl Server {
                         logger,
                         this.hash_server_connections.clone(),
                         this.hash_persistance_connections.clone(),
+                        this.hash_credentials.clone(),
                         tx.clone(),
                     );
                     // TODO: verificar si _handle dio error
@@ -246,6 +257,7 @@ impl Server {
         logger: Arc<Logger>,
         hash_server_connections: Arc<Mutex<HashServerConnections>>,
         hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
+        hash_credentials: Arc<Mutex<HashCredentials>>,
         client_connections: &mut HandleClientConnections,
         tx_server: Sender<Vec<String>>,
         client_id: &mut String,
@@ -262,6 +274,14 @@ impl Server {
                 "Client Connection with Client identifier: {}, verifying that was connected...",
                 client_identifier
             ));
+
+            // get the user and password from the packet
+            let user = unvalued_packet.payload.user;
+            let password = unvalued_packet.payload.password;
+            // get user and password from the filename
+            if user {
+
+            }
 
             if Server::get_id_persistance_connections(
                 client_identifier,
