@@ -265,7 +265,7 @@ fn main() {
                             }
                             if client.is_connected() {
                                 println!(
-                                    " <-- Connected to server with client id {}",
+                                    "<-- Connected to server with client id {}",
                                     client_identifier
                                 );
                                 break;

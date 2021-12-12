@@ -32,11 +32,14 @@ pub struct Client {
     username: String,
     password: String,
     connect_retries: usize,
+    tx_out: Arc<Mutex<Sender<String>>>,
+    rx_out: Arc<Mutex<Receiver<String>>>,
 }
 
 impl Client {
     pub fn new() -> Client {
         let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = channel();
+        let (tx_out, rx_out) = channel::<String>(); // channel to send outside messages
         let rx = Arc::new(Mutex::new(rx));
         let tx = Arc::new(Mutex::new(tx));
         let mut rng = thread_rng();
@@ -62,6 +65,20 @@ impl Client {
             username: String::from(""),
             password: String::from(""),
             connect_retries,
+            tx_out: Arc::new(Mutex::new(tx_out)),
+            rx_out: Arc::new(Mutex::new(rx_out)),
+        }
+    }
+
+    fn print_all(text: String, tx_out: sync::Arc<Mutex<Sender<String>>>) {
+        println!("{}", text);
+        match tx_out.lock() {
+            Ok(tx_out) => {
+                tx_out.send(text).unwrap();
+            }
+            Err(e) => {
+                println!("{}", e);
+            }
         }
     }
 
@@ -166,7 +183,7 @@ impl Client {
         port: String,
         username: String,
         password: String,
-    ) -> Result<Arc<Mutex<TcpStream>>, &str> {
+    ) -> Result<Arc<Mutex<Receiver<String>>>, &str> {
         self.server_host = host;
         self.server_port = port;
         self.username = username;
@@ -174,10 +191,10 @@ impl Client {
         let keepalive_interval = 20;
         match TcpStream::connect(self.server_host.to_string() + ":" + &self.server_port) {
             Ok(stream) => {
-                println!(
+                Client::print_all(format!(
                     "Successfully connected to server in port {}",
                     self.server_port
-                );
+                ), self.tx_out.clone());
 
                 let mut packet = Packet::<VariableHeader, Payload>::new();
 
@@ -202,9 +219,10 @@ impl Client {
                     self.client_connection.clone(),
                     keepalive_interval,
                     self.keepalive_pair.clone(),
+                    self.tx_out.clone(),
                 );
                 Client::handle_write(stream_.clone(), Arc::clone(&self.rx));
-                return Ok(stream_);
+                return Ok(self.rx_out.clone());
             }
             Err(e) => {
                 println!("Failed to connect: {}", e);
@@ -241,6 +259,7 @@ impl Client {
         client_connection: sync::Arc<AtomicBool>,
         keepalive_interval: usize,
         keepalive_pair: Arc<(Mutex<bool>, Condvar)>,
+        tx_out: sync::Arc<Mutex<Sender<String>>>,
     ) {
         // let peer = stream.lock().unwrap().peer_addr().unwrap();
         let _handle_read = thread::Builder::new()
@@ -259,7 +278,8 @@ impl Client {
                             match buff[0] & 0xF0 {
                                 control_type::CONNACK => {
                                     client_connection.store(true, Ordering::SeqCst);
-                                    println!("Connack received! setting keepalive");
+                                    // println!("Connack received! setting keepalive");
+                                    Client::print_all("Connack received! setting keepalive".to_string(), tx_out.clone());
                                     Client::keepalive(
                                         stream.clone(),
                                         keepalive_interval,
@@ -267,7 +287,8 @@ impl Client {
                                     );
                                 }
                                 control_type::PUBACK => {
-                                    println!("Puback received!");
+                                    // println!("Puback received!");
+                                    Client::print_all("Puback received!".to_string(), tx_out.clone());
                                 }
                                 control_type::PUBLISH => {
                                     println!("Publish received!");
@@ -275,13 +296,21 @@ impl Client {
                                         Packet::<VariableHeaderPublish, PublishPayload>::unvalue(
                                             buff.to_vec(),
                                         );
-                                    println!(
-                                        "<-- publish topic: {} value: {}",
+                                    Client::print_all(
+                                    format!("<-- publish topic: {} value: {}",
                                         String::from_utf8_lossy(
                                             &unvalue.variable_header.topic_name
                                         ),
-                                        unvalue.payload.message
+                                        unvalue.payload.message),
+                                        tx_out.clone()
                                     );
+                                    // println!(
+                                    //     "<-- publish topic: {} value: {}",
+                                    //     String::from_utf8_lossy(
+                                    //         &unvalue.variable_header.topic_name
+                                    //     ),
+                                    //     unvalue.payload.message
+                                    // );
                                 }
                                 control_type::PINGRESP => {
                                     let (lock, cvar) = &*keepalive_pair;
@@ -292,13 +321,18 @@ impl Client {
                                 }
                                 control_type::SUBACK => {
                                     println!("Suback received!");
-                                    println!("<-- Succesfully subscribed to topic");
+                                    Client::print_all("<-- Succesfully subscribed to topic".to_string(), tx_out.clone());
+                                    // println!("<-- Succesfully subscribed to topic");
                                 },
                                 control_type::UNSUBACK => {
                                     println!("Unsuback received!");
+                                    Client::print_all("<-- Succesfully unsubscribed from topic".to_string(), tx_out.clone());
                                     println!("<-- Succesfully unsubscribed from topic");
                                 },
-                                _ => println!("Unexpected reply: {:?}\n", buff),
+                                _ => {
+                                    // println!("Unexpected reply: {:?}\n", buff);
+                                    Client::print_all(format!("Unexpected reply: {:?}\n", buff), tx_out.clone());
+                                },
                             }
                         }
                     }
