@@ -11,7 +11,7 @@ use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket, Utils
 use rand::Rng;
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Read, Result, Write};
-use std::net::{Shutdown, TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -43,10 +43,9 @@ pub struct HandleClientConnections {
 
 #[allow(clippy::unit_arg)]
 impl Server {
-    pub fn new(server_address: String, server_port: String, file_source: &str) -> Server {
+    pub fn new(server_address: String, server_port: String, file_source: &str, credentials_file: &str) -> Server {
         // crear hash de credentials como username => password
-        let file_config = "src/credential.yaml";
-        let mut hash_credentials = load_contents(file_config);
+        let hash_credentials = load_contents(credentials_file);
         
         let hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>> =
             Arc::new(Mutex::new(HashMap::new()));
@@ -90,6 +89,7 @@ impl Server {
             logger: Arc<Logger>,
             hash_server_connections: Arc<Mutex<HashServerConnections>>,
             hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
+            hash_credentials: Arc<Mutex<HashCredentials>>,
             mut client_connections: HandleClientConnections,
             tx_server: Sender<Vec<String>>,
         ) -> Result<()> {
@@ -177,6 +177,7 @@ impl Server {
                     logger.clone(),
                     hash_server_connections,
                     hash_persistance_connections,
+                    hash_credentials,
                     handle_client_connections,
                     tx_server,
                 ) {
@@ -275,13 +276,50 @@ impl Server {
                 client_identifier
             ));
 
+            // Credentials check
             // get the user and password from the packet
-            let user = unvalued_packet.payload.user;
+            let user = unvalued_packet.payload.user_name;
             let password = unvalued_packet.payload.password;
             // get user and password from the filename
-            if user {
+            if !user.is_empty() || !password.is_empty() {
+                logger.debug(format!(
+                    "User and password from packet: {}, {}",
+                    user, password
+                ));
 
+                // searching for the user and password in the hashmap and then compare password with value
+                let hash_credentials = hash_credentials.lock().unwrap();
+                match hash_credentials.get(user.as_str()) {
+                    Some(password_saved) => {
+                        if *password_saved != password {
+                            logger.debug(format!(
+                                "User {} password is incorrect",
+                                user
+                            ));
+                            return Err(Error::new(
+                                ErrorKind::Other,
+                                format!("User {} password is incorrect", user),
+                            ));
+                        }
+                    },
+                    None => {
+                        logger.debug(format!(
+                            "User {} not found in hashmap",
+                            user
+                        ));
+                        return Err(Error::new(
+                            ErrorKind::Other,
+                            format!("User {} not found in hashmap", user),
+                        ));
+                    },
+                }
+            } else {
+                logger.debug(format!(
+                    "User and password not found in connecting packet for client {}",
+                    client_identifier
+                ));
             }
+            // End credentials check
 
             if Server::get_id_persistance_connections(
                 client_identifier,
@@ -314,10 +352,12 @@ impl Server {
                     };
                 }
 
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "Error, client already connected",
-                ));
+                // do not return error this causes not to send a connack to client on reconnect
+                // return Err(Error::new(
+                //     ErrorKind::Other,
+                //     "Error, client already connected",
+                // ));
+
             }
             // si no lo encuentra debemos seguir sin dar error ...
         }

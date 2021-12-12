@@ -2,7 +2,7 @@ use std::io::{BufReader, Read, Result};
 use std::{collections::HashMap, fs::File};
 
 pub fn get_contents(file_name: &str) -> Result<String> {
-    let file = File::open(file_name).unwrap_or_else(|_| panic!("file not found: {}", file_name));
+    let file = File::open(file_name).unwrap_or_else(|_| panic!("File not found: {}", file_name));
     let mut buf_reader = BufReader::new(file);
     let mut contents = String::new();
     buf_reader.read_to_string(&mut contents)?;
@@ -12,7 +12,10 @@ pub fn get_contents(file_name: &str) -> Result<String> {
 pub fn load_contents(file_name: &str) -> HashMap<String, String> {
     let mut hash_config: HashMap<String, String> = HashMap::new();
     if let Ok(contents) = get_contents(file_name) {
-        let lines: Vec<String> = contents.split('\n').map(|s: &str| s.to_string()).collect();
+        let lines: Vec<String> = contents.split('\n')
+            .map(|s: &str| s.to_string())
+            .filter(|lines| !lines.starts_with("#"))
+            .collect();
         let mut line_vec: Vec<&str>;
         for line in &lines {
             line_vec = line.split(": ").collect();
@@ -34,7 +37,7 @@ mod tests {
         let contents = get_contents(file_name);
         assert_eq!(
             contents.unwrap(),
-            "host: localhost\nport: 3333\nlogfile: ../log.txt"
+            "host: localhost\nport: 3333\nlogfile: ../log.txt\ncredentials_file: ../credentials.yaml"
         )
     }
 
@@ -44,6 +47,7 @@ mod tests {
         hash_config_example.insert("logfile".to_string(), "../log.txt".to_string());
         hash_config_example.insert("port".to_string(), "3333".to_string());
         hash_config_example.insert("host".to_string(), "localhost".to_string());
+        hash_config_example.insert("credentials_file".to_string(), "../credentials.yaml".to_string());
 
         let file_name = "src/config.yaml";
         let hash_config = load_contents(file_name);
