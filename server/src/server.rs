@@ -35,7 +35,6 @@ pub struct Server {
     tx_server: Arc<Mutex<Sender<Vec<String>>>>,
     rx_server: Arc<Mutex<Receiver<Vec<String>>>>,
     hash_credentials: Arc<Mutex<HashCredentials>>,
-    use_credentials: bool,
 }
 #[derive(Clone, Debug)]
 pub struct HandleClientConnections {
@@ -53,12 +52,9 @@ impl Server {
         file_source: &str,
         credentials_file: &str,
     ) -> Server {
-        let use_credentials: bool;
         let hash_credentials = if !credentials_file.is_empty() {
-            use_credentials = true;
             load_contents(credentials_file)
         } else {
-            use_credentials = false;
             HashMap::new()
         };
 
@@ -79,7 +75,6 @@ impl Server {
             tx_server: Arc::new(Mutex::new(tx_server)),
             rx_server: Arc::new(Mutex::new(rx_server)),
             hash_credentials: Arc::new(Mutex::new(hash_credentials)),
-            use_credentials,
         };
         let _handle = Server::message_handler(
             server.tx_server.clone(),
@@ -313,7 +308,7 @@ impl Server {
                     ));
                 }
             } else {
-                println!("No credentials registered for this server");
+                logger.debug("No credentials registered for this server".to_string());
             }
             // End credentials check
             
