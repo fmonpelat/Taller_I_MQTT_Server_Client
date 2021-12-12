@@ -558,7 +558,7 @@ impl Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
         res
     }
 
-    /// Deserializes a Packet<VariableHeaderPacketIdentifier, SubackPayload>
+    /// Deserializes a Packet<VariableHeaderPacketIdentifier, UnsubscribePayload>
     #[allow(dead_code)]
     pub fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
         let mut absolute_index: usize = 0;
@@ -566,6 +566,10 @@ impl Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
         let mut has_variable_header = false;
         let mut readed: usize = 0;
         let header = Header::unvalue(x.clone(), &mut readed);
+        // sum all elements of header.remaining_length_0 as u16
+        let remaining_len: u16 = header.remaining_length_0.iter().fold(0, |acc: u16, x| acc + *x as u16);
+        let packet_length: usize = header.remaining_length_0.len() + 2 + remaining_len as usize;
+
         absolute_index += readed;
 
         let variable_header = VariableHeaderPacketIdentifier::unvalue(
@@ -578,7 +582,7 @@ impl Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
         }
         absolute_index += readed;
 
-        let payload = UnsubscribePayload::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
+        let payload = UnsubscribePayload::unvalue(x[absolute_index..(packet_length-1)].to_vec(), &mut readed);
         if readed > 0 {
             has_payload = true;
         }
