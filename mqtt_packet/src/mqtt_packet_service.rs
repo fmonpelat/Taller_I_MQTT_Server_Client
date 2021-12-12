@@ -541,6 +541,7 @@ impl<T, P> Utils for Packet<T, P> {
 
 pub trait ClientPacket {
     fn connect(&self, client_identifier: String) -> Packet<VariableHeader, Payload>;
+    fn connect_with_credentials(&self, client_identifier: String, username: String, password: String) -> Packet<VariableHeader, Payload>;
     fn disconnect(&self) -> Packet<VariableHeader, Payload>;
     fn pingreq(&self) -> Packet<VariableHeader, Payload>;
     fn puback(&self, packet_identifier: u16) -> Packet<VariableHeaderPacketIdentifier, Payload>;
@@ -561,6 +562,16 @@ pub trait ClientPacket {
     ) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload>;
 }
 impl<T, P> ClientPacket for Packet<T, P> {
+    /// Creates a Connect packet with credentials
+    fn connect_with_credentials(&self, client_identifier: String, username: String, password: String) -> Packet<VariableHeader, Payload> {
+        let mut payload = Payload::default();
+        payload.user_name = username;
+        payload.password = password;
+        let mut packet = self.connect(client_identifier);
+        packet.payload = payload;
+        return packet;
+    }
+
     /// Creates a Connect packet
     fn connect(&self, client_identifier: String) -> Packet<VariableHeader, Payload> {
         let header = Header {
