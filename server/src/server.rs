@@ -104,10 +104,7 @@ impl Server {
                     Ok(_size) => {
                         if _size > 0 {
                             let control_type = buff[0];
-                            logger.debug(format!(
-                                "Check if a MQTT PACKET is received: {:?}",
-                                control_type
-                            ));
+                            logger.debug("Check if a MQTT PACKET is received".to_string());
                             if Packet::<VariableHeader, Payload>::is_mqtt_packet(&buff) {
                                 logger.debug(format!("Found a MQTT packet: {:?}", control_type));
                                 match Server::handle_packet(
