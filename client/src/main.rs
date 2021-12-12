@@ -69,20 +69,23 @@ fn main() {
 
                     if !client.is_connected() {
                         match client.connect(
-                                host.clone(),
-                                port.clone(),
-                                username.clone(),
-                                password.clone(),
+                            host.clone(),
+                            port.clone(),
+                            username.clone(),
+                            password.clone(),
                         ) {
                             Ok(_) => {
-                                println!("--> connect to server with host: {} port: {}", host, port);
+                                println!(
+                                    "--> connect to server with host: {} port: {}",
+                                    host, port
+                                );
                             }
                             Err(_) => {
                                 println!("--> Error connecting with host: {} port: {}", host, port);
                                 continue;
                             }
                         };
-                            
+
                         let client_identifier = client.get_id_client();
                         println!("--> Trying to connect with client id {}", client_identifier);
                         let mut i: usize = 0;
@@ -107,8 +110,8 @@ fn main() {
                         println!("--> Already connected!");
                         continue;
                     }
-                },
-                
+                }
+
                 "publish" => {
                     // send publish
                     if !client.is_connected() {
@@ -170,8 +173,8 @@ fn main() {
                     );
                     println!("--> publish topic: {} value: {}", topic_name, message);
                     client.send(packet.value());
-                },
-                
+                }
+
                 "disconnect" => {
                     if !client.is_connected() {
                         println!(" <-- Not connected to server. Please connect first");
@@ -179,7 +182,7 @@ fn main() {
                     }
                     client.disconnect();
                     println!("--> Disconnected from server.");
-                },
+                }
 
                 "subscribe" => {
                     // subscribe qos topic_name
@@ -213,7 +216,7 @@ fn main() {
                     let packet = packet.suscribe(packet_identifier, topic_names, qos_vec);
                     println!("--> Subscribe topic: {}", topic_name);
                     client.send(packet.value());
-                },
+                }
 
                 "unsubscribe" => {
                     // unsubscribe topic_name
@@ -233,13 +236,12 @@ fn main() {
                     }
 
                     let packet_identifier = client.get_packet_identifier();
-                    let mut topic_names: Vec<String> = vec![];
-                    topic_names.push(topic_name.clone());
-                    
+                    let topic_names: Vec<String> = vec![topic_name.clone()];
+
                     let packet = packet.unsubscribe(packet_identifier, topic_names);
                     println!("--> Unsubscribe topic: {}", topic_name);
                     client.send(packet.value());
-                },
+                }
 
                 "test" => {
                     println!("Test connection to localhost");
@@ -279,27 +281,27 @@ fn main() {
                         continue;
                     }
                     if client.is_connected() {
-                        // // test publish
-                        // let packet_identifier = client.get_packet_identifier();
-                        // let packet = packet.publish(
-                        //     0,
-                        //     0,
-                        //     0,
-                        //     packet_identifier,
-                        //     "hola".to_string(),
-                        //     "hola2".to_string(),
-                        // );
-                        // println!("Sending packet: {:?}", packet.value());
-                        // client.send(packet.value());
+                        // test publish
+                        let packet_identifier = client.get_packet_identifier();
+                        let packet = packet.publish(
+                            0,
+                            0,
+                            0,
+                            packet_identifier,
+                            "hola".to_string(),
+                            "hola2".to_string(),
+                        );
+                        println!("Sending packet: {:?}", packet.value());
+                        client.send(packet.value());
 
-                        // // test subscribe
-                        // let packet_identifier = client.get_packet_identifier();
-                        // let qos_vec: Vec<u8> = vec![0];
-                        // let topic_name = "test1".to_string();
-                        // let topic_names: Vec<String> = vec![topic_name.clone()];
-                        // let packet = packet.suscribe(packet_identifier, topic_names, qos_vec);
-                        // println!("--> Subscribe topic: {}", topic_name);
-                        // client.send(packet.value());
+                        // test subscribe
+                        let packet_identifier = client.get_packet_identifier();
+                        let qos_vec: Vec<u8> = vec![0];
+                        let topic_name = "test1".to_string();
+                        let topic_names: Vec<String> = vec![topic_name.clone()];
+                        let packet = packet.suscribe(packet_identifier, topic_names, qos_vec);
+                        println!("--> Subscribe topic: {}", topic_name);
+                        client.send(packet.value());
 
                         // test unsubscribe
                         let topic_name = "test1".to_string();
@@ -308,10 +310,9 @@ fn main() {
                         let packet = packet.unsubscribe(packet_identifier, topic_names);
                         println!("--> Unsubscribe topic: {}", topic_name);
                         client.send(packet.value());
-
                     }
-                },
-                
+                }
+
                 "test-p" => {
                     let packet_identifier = client.get_packet_identifier();
                     let packet = packet.publish(
@@ -328,7 +329,7 @@ fn main() {
                         "asasa".to_string()
                     );
                     client.send(packet.value());
-                },
+                }
 
                 "test-connection" => {
                     if client.is_connected() {
@@ -340,16 +341,16 @@ fn main() {
                         println!("<-- Not connected to server");
                         continue;
                     }
-                },
+                }
 
                 "exit" => {
                     break;
-                },
+                }
 
                 _ => {
                     println!("Message not understood: {:?}", user_input);
                     continue;
-                },
+                }
             }
         } else {
             println!("Invalid command, to exit type: exit");
