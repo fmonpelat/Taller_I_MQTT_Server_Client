@@ -35,6 +35,7 @@ pub struct Server {
     tx_server: Arc<Mutex<Sender<Vec<String>>>>,
     rx_server: Arc<Mutex<Receiver<Vec<String>>>>,
     hash_credentials: Arc<Mutex<HashCredentials>>,
+    use_credentials: bool,
 }
 #[derive(Clone, Debug)]
 pub struct HandleClientConnections {
@@ -52,7 +53,14 @@ impl Server {
         file_source: &str,
         credentials_file: &str,
     ) -> Server {
-        let hash_credentials = load_contents(credentials_file);
+        let use_credentials: bool;
+        let hash_credentials = if !credentials_file.is_empty() {
+            use_credentials = true;
+            load_contents(credentials_file)
+        } else {
+            use_credentials = false;
+            HashMap::new()
+        };
 
         let hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>> =
             Arc::new(Mutex::new(HashMap::new()));
@@ -71,6 +79,7 @@ impl Server {
             tx_server: Arc::new(Mutex::new(tx_server)),
             rx_server: Arc::new(Mutex::new(rx_server)),
             hash_credentials: Arc::new(Mutex::new(hash_credentials)),
+            use_credentials,
         };
         let _handle = Server::message_handler(
             server.tx_server.clone(),
@@ -270,39 +279,44 @@ impl Server {
             ));
 
             // Credentials check
-            // get the user and password from the packet
-            let user = unvalued_packet.payload.user_name;
-            let password = unvalued_packet.payload.password;
-            // get user and password from the filename
-            if !user.is_empty() || !password.is_empty() {
-                // searching for the user and password in the hashmap and then compare password with value
-                let hash_credentials = hash_credentials.lock().unwrap();
-                match hash_credentials.get(user.as_str()) {
-                    Some(password_saved) => {
-                        if *password_saved != password {
-                            logger.debug(format!("User {} password is incorrect", user));
+            if !hash_credentials.lock().unwrap().is_empty() {
+
+                // get the user and password from the packet
+                let user = unvalued_packet.payload.user_name;
+                let password = unvalued_packet.payload.password;
+                // get user and password from the filename
+                if !user.is_empty() || !password.is_empty() {
+                    // searching for the user and password in the hashmap and then compare password with value
+                    let hash_credentials = hash_credentials.lock().unwrap();
+                    match hash_credentials.get(user.as_str()) {
+                        Some(password_saved) => {
+                            if *password_saved != password {
+                                logger.debug(format!("User {} password is incorrect", user));
+                                return Err(Error::new(
+                                    ErrorKind::Other,
+                                    format!("Client Connection with Client identifier: {} refused, user password incorrect", client_identifier),
+                                ));
+                            }
+                        }
+                        None => {
+                            logger.debug(format!("User {} not found in server credential file", user));
                             return Err(Error::new(
                                 ErrorKind::Other,
-                                format!("Client Connection with Client identifier: {} refused, user password incorrect", client_identifier),
+                                format!("Client Connection with Client identifier: {} refused, user not found", client_identifier),
                             ));
                         }
                     }
-                    None => {
-                        logger.debug(format!("User {} not found in server credential file", user));
-                        return Err(Error::new(
-                            ErrorKind::Other,
-                            format!("Client Connection with Client identifier: {} refused, user not found", client_identifier),
-                        ));
-                    }
+                } else {
+                    logger.debug(format!(
+                        "User and password not found in connecting packet for client {}, connecting anyway",
+                        client_identifier
+                    ));
                 }
             } else {
-                logger.debug(format!(
-                    "User and password not found in connecting packet for client {}, connecting anyway",
-                    client_identifier
-                ));
+                println!("No credentials registered for this server");
             }
             // End credentials check
-
+            
             if Server::get_id_persistance_connections(
                 client_identifier,
                 hash_server_connections.clone(),
