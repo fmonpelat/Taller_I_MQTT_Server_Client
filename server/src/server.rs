@@ -38,13 +38,14 @@ pub struct Server {
 pub struct HandleClientConnections {
     tx: Arc<Mutex<Sender<Vec<u8>>>>,
     rx: Arc<Mutex<Receiver<Vec<u8>>>>,
+    #[allow(dead_code)]
     peer: Arc<Mutex<String>>,
 }
 
 #[allow(clippy::unit_arg)]
 impl Server {
     pub fn new(server_address: String, server_port: String, file_source: &str, credentials_file: &str) -> Server {
-        // crear hash de credentials como username => password
+
         let hash_credentials = load_contents(credentials_file);
         
         let hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>> =
@@ -53,7 +54,7 @@ impl Server {
             Arc::new(Mutex::new(HashMap::new()));
         let hash_topics: Arc<Mutex<HashTopics>> = Arc::new(Mutex::new(HashMap::new()));
         let (tx_server, rx_server) = channel::<Vec<String>>();
-        //TODO Check return and see how call to the function
+
         let server = Server {
             server_address: Arc::new(server_address),
             server_port: Arc::new(server_port),
@@ -95,6 +96,7 @@ impl Server {
         ) -> Result<()> {
             let mut buff = [0_u8; 1024];
             let mut _client_id = String::new();
+            #[allow(unreachable_code)]
             Ok(loop {
                 stream
                     .set_read_timeout(Some(Duration::from_millis(30)))?;
@@ -282,11 +284,6 @@ impl Server {
             let password = unvalued_packet.payload.password;
             // get user and password from the filename
             if !user.is_empty() || !password.is_empty() {
-                logger.debug(format!(
-                    "User and password from packet: {}, {}",
-                    user, password
-                ));
-
                 // searching for the user and password in the hashmap and then compare password with value
                 let hash_credentials = hash_credentials.lock().unwrap();
                 match hash_credentials.get(user.as_str()) {
@@ -298,7 +295,7 @@ impl Server {
                             ));
                             return Err(Error::new(
                                 ErrorKind::Other,
-                                format!("User {} password is incorrect", user),
+                                format!("Client Connection with Client identifier: {} refused, user password incorrect", client_identifier),
                             ));
                         }
                     },
@@ -309,13 +306,13 @@ impl Server {
                         ));
                         return Err(Error::new(
                             ErrorKind::Other,
-                            format!("User {} not found in hashmap", user),
+                            format!("Client Connection with Client identifier: {} refused, user not found", client_identifier),
                         ));
                     },
                 }
             } else {
                 logger.debug(format!(
-                    "User and password not found in connecting packet for client {}",
+                    "User and password not found in connecting packet for client {}, connecting anyway",
                     client_identifier
                 ));
             }
