@@ -279,6 +279,56 @@ impl PacketPayloadSuscribe for SuscribePayload {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct UnsubscribePayload {
+    pub topic_filter: Vec<String>,
+}
+pub trait PacketUnsubscribePayload {
+    fn value(&self) -> Vec<u8>;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> UnsubscribePayload;
+}
+
+impl PacketUnsubscribePayload for UnsubscribePayload {
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> UnsubscribePayload {
+        *readed = 0;
+        if x.is_empty() {
+            return UnsubscribePayload::default();
+        }
+        let mut index = 0; // index of the payload value
+        let mut topic_filter = Vec::new();
+
+        while index < x.len() {
+            let topic_filter_len = x[index] as u16 + (x[index + 1] as u16);
+            index += 2;
+            let topic_filter_ =
+                String::from_utf8(x[index..(index + topic_filter_len as usize)].to_vec())
+                    .unwrap_or_else(|_| String::from("")); // topic_filter default empty as error
+
+            index += topic_filter_len as usize; // index of the next topic_filter length
+            topic_filter.push(topic_filter_);
+        }
+        *readed = index;
+        UnsubscribePayload { topic_filter }
+    }
+
+    fn value(&self) -> Vec<u8> {
+        let mut payload_vec: Vec<u8> = Vec::with_capacity(2048); // 2KB max payload
+        let mut i: usize = 0;
+        self.topic_filter.iter().for_each(|x| {
+            let x_ = (x.len() as u16).to_be_bytes();
+            payload_vec.extend(x_); // extend payload_vec with topic_filter[i] length
+            payload_vec.extend(x.as_bytes()); // extend payload_vec with topic_filter[i]
+            i += 1;
+        });
+        if payload_vec.is_empty() {
+            return vec![];
+        }
+        payload_vec
+    }
+}
+
+
+
 /// Suscribe has the payload type SuscribePayload
 #[derive(Debug, Default)]
 pub struct SubackPayload {
@@ -315,6 +365,17 @@ impl PacketSubackPayload for SubackPayload {
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn unsuscribe_payload_test() {
+        let mut readed = 0;
+        let payload = UnsubscribePayload {
+            topic_filter: vec![String::from("some_topic"), String::from("some_topic2")],
+        };
+        let payload_ = payload.value();
+        let payload_ = UnsubscribePayload::unvalue(payload_, &mut readed);
+        assert_eq!(payload.topic_filter, payload_.topic_filter);
+    }
 
     #[test]
     fn suback_payload_test() {

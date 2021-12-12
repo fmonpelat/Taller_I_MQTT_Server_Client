@@ -9,7 +9,7 @@ use variable_header_packet::{
 pub mod payload_packet;
 use payload_packet::{
     PacketPayload, PacketPayloadSuscribe, PacketPublishPayload, PacketSubackPayload, Payload,
-    PublishPayload, SuscribePayload,
+    PublishPayload, SuscribePayload, UnsubscribePayload, PacketUnsubscribePayload
 };
 
 use self::payload_packet::SubackPayload;
@@ -560,6 +560,11 @@ pub trait ClientPacket {
         topic_names: Vec<String>,
         qos: Vec<u8>,
     ) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload>;
+    fn unsubscribe(
+        &self,
+        packet_identifier: u16,
+        topic_names: Vec<String>,
+    ) -> Packet<VariableHeaderPacketIdentifier, UnsubscribePayload>;
 }
 impl<T, P> ClientPacket for Packet<T, P> {
     /// Creates a Connect packet with credentials
@@ -704,7 +709,7 @@ impl<T, P> ClientPacket for Packet<T, P> {
     ) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
         let mut header = Header {
             control_type: control_type::SUBSCRIBE,
-            control_flags: control_flags::QOS1,
+            control_flags: control_flags::QOS0,
             remaining_length_0: vec![0],
         };
         let variable_header = VariableHeaderPacketIdentifier { packet_identifier };
@@ -715,6 +720,32 @@ impl<T, P> ClientPacket for Packet<T, P> {
         header.set_remaining_length((variable_header.value().len() + payload.value().len()) as u32);
         // building the struct packet
         Packet::<VariableHeaderPacketIdentifier, SuscribePayload> {
+            header,
+            has_variable_header: true,
+            variable_header,
+            has_payload: true,
+            payload,
+        }
+    }
+
+    /// Creates a Unsubscribe packet
+    fn unsubscribe(
+        &self,
+        packet_identifier: u16,
+        topic_names: Vec<String>
+    ) -> Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
+        let mut header = Header {
+            control_type: control_type::UNSUBSCRIBE,
+            control_flags: control_flags::QOS0,
+            remaining_length_0: vec![0],
+        };
+        let variable_header = VariableHeaderPacketIdentifier { packet_identifier };
+        let payload = UnsubscribePayload {
+            topic_filter: topic_names,
+        };
+        header.set_remaining_length((variable_header.value().len() + payload.value().len()) as u32);
+        // building the struct packet
+        Packet::<VariableHeaderPacketIdentifier, UnsubscribePayload> {
             header,
             has_variable_header: true,
             variable_header,
@@ -736,6 +767,7 @@ pub trait ServerPacket {
         packet_identifier: u16,
         qos: Vec<u8>,
     ) -> Packet<VariableHeaderPacketIdentifier, SubackPayload>;
+    fn unsuback(&self, packet_identifier: u16) -> Packet<VariableHeaderPacketIdentifier, Payload>;
 }
 
 impl<T, P> ServerPacket for Packet<T, P> {
@@ -816,6 +848,25 @@ impl<T, P> ServerPacket for Packet<T, P> {
             payload,
         }
     }
+
+    /// Creates a Unsuback packet
+    fn unsuback(&self, packet_identifier: u16) -> Packet<VariableHeaderPacketIdentifier, Payload> {
+        let mut header = Header {
+            control_type: control_type::UNSUBACK,
+            control_flags: control_flags::RESERVED,
+            remaining_length_0: vec![0],
+        };
+        let variable_header = VariableHeaderPacketIdentifier { packet_identifier };
+        header.set_remaining_length(variable_header.value().len() as u32);
+        // building the struct packet
+        Packet {
+            header,
+            has_variable_header: true,
+            variable_header,
+            has_payload: false,
+            payload: Payload::default(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -829,6 +880,33 @@ mod tests {
 
         use super::*;
         use payload_packet::suback_return_codes;
+
+        #[test]
+        fn check_unsuback_packet() {
+            let packet = Packet::<VariableHeader, Payload>::new();
+            let packet = packet.unsuback(
+                0x1234,
+            );
+            assert_eq!(packet.header.control_type, control_type::UNSUBACK);
+            assert_eq!(packet.header.control_flags, control_flags::RESERVED);
+            assert_eq!(packet.header.remaining_length_0[0], 2);
+            assert_eq!(packet.variable_header.packet_identifier, 0x1234);
+        }
+
+        #[test]
+        fn check_unsubscribe_packet() {
+            let packet = Packet::<VariableHeader, Payload>::new();
+            let packet = packet.unsubscribe(
+                1,
+                vec!["topic1".to_string(), "topic2".to_string()],
+            );
+            assert_eq!(packet.header.control_type, control_type::UNSUBSCRIBE);
+            assert_eq!(packet.header.control_flags, control_flags::QOS0);
+            assert_eq!(packet.header.remaining_length_0[0], 18);
+            assert_eq!(packet.variable_header.packet_identifier, 1);
+            assert_eq!(packet.payload.topic_filter[0], "topic1".to_string());
+            assert_eq!(packet.payload.topic_filter[1], "topic2".to_string());
+        }
 
         #[test]
         fn check_suback_packet() {
