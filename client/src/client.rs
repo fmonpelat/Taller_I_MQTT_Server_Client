@@ -327,7 +327,7 @@ impl Client {
                                 control_type::UNSUBACK => {
                                     println!("Unsuback received!");
                                     Client::print_all("<-- Succesfully unsubscribed from topic".to_string(), tx_out.clone());
-                                    println!("<-- Succesfully unsubscribed from topic");
+                                    // println!("<-- Succesfully unsubscribed from topic");
                                 },
                                 _ => {
                                     // println!("Unexpected reply: {:?}\n", buff);
