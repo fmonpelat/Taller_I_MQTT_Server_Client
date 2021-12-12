@@ -511,6 +511,86 @@ impl Packet<VariableHeaderPacketIdentifier, SubackPayload> {
     }
 }
 
+impl Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
+    /// Creates a new Packet<VariableHeaderPacketIdentifier, UnsubscribePayload>
+    #[allow(dead_code)]
+    pub fn new() -> Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
+        Packet {
+            header: Header::default(),
+            has_variable_header: true,
+            variable_header: VariableHeaderPacketIdentifier::default(),
+            has_payload: true,
+            payload: UnsubscribePayload::default(),
+        }
+    }
+
+    /// Serializes a Packet<VariableHeaderPacketIdentifier, UnsubscribePayload>
+    #[allow(dead_code)]
+    pub fn value(&self) -> Vec<u8> {
+        let mut res: Vec<u8> = Vec::with_capacity(3072); // max 3KB packet
+        let variable_header = if self.has_variable_header {
+            self.variable_header.value()
+        } else {
+            Vec::new()
+        };
+        let payload = if self.has_payload {
+            self.payload.value()
+        } else {
+            Vec::new()
+        };
+
+        let vec: Vec<u8> = self
+            .header
+            .value()
+            .iter()
+            .cloned()
+            .chain(
+                variable_header
+                    .iter()
+                    .cloned()
+                    .chain(payload.iter().cloned()),
+            )
+            .collect();
+
+        for i in vec {
+            res.push(i);
+        }
+        res
+    }
+
+    /// Deserializes a Packet<VariableHeaderPacketIdentifier, SubackPayload>
+    #[allow(dead_code)]
+    pub fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
+        let mut absolute_index: usize = 0;
+        let mut has_payload = false;
+        let mut has_variable_header = false;
+        let mut readed: usize = 0;
+        let header = Header::unvalue(x.clone(), &mut readed);
+        absolute_index += readed;
+
+        let variable_header = VariableHeaderPacketIdentifier::unvalue(
+            x[absolute_index..x.len()].to_vec(),
+            &mut readed,
+        );
+
+        if readed > 0 {
+            has_variable_header = true;
+        }
+        absolute_index += readed;
+
+        let payload = UnsubscribePayload::unvalue(x[absolute_index..x.len()].to_vec(), &mut readed);
+        if readed > 0 {
+            has_payload = true;
+        }
+        Packet::<VariableHeaderPacketIdentifier, UnsubscribePayload> {
+            header,
+            has_variable_header,
+            variable_header,
+            has_payload,
+            payload,
+        }
+    }
+}
 // general implementation for all packets
 pub trait Utils {
     fn get_packet_length(vec: &[u8], readed: &mut usize) -> usize;
@@ -887,10 +967,13 @@ mod tests {
             let packet = packet.unsuback(
                 0x1234,
             );
-            assert_eq!(packet.header.control_type, control_type::UNSUBACK);
-            assert_eq!(packet.header.control_flags, control_flags::RESERVED);
-            assert_eq!(packet.header.remaining_length_0[0], 2);
-            assert_eq!(packet.variable_header.packet_identifier, 0x1234);
+            let value = packet.value();
+            assert_eq!(value.len(), 4);
+            let unvalue = Packet::<VariableHeaderPacketIdentifier, Payload>::unvalue(value);
+            assert_eq!(unvalue.header.control_type, control_type::UNSUBACK);
+            assert_eq!(unvalue.header.control_flags, control_flags::RESERVED);
+            assert_eq!(unvalue.header.remaining_length_0[0], 2);
+            assert_eq!(unvalue.variable_header.packet_identifier, 0x1234);
         }
 
         #[test]
@@ -900,12 +983,16 @@ mod tests {
                 1,
                 vec!["topic1".to_string(), "topic2".to_string()],
             );
-            assert_eq!(packet.header.control_type, control_type::UNSUBSCRIBE);
-            assert_eq!(packet.header.control_flags, control_flags::QOS0);
-            assert_eq!(packet.header.remaining_length_0[0], 18);
-            assert_eq!(packet.variable_header.packet_identifier, 1);
-            assert_eq!(packet.payload.topic_filter[0], "topic1".to_string());
-            assert_eq!(packet.payload.topic_filter[1], "topic2".to_string());
+            let value = packet.value();
+            assert_eq!(value.len(), 20);
+            let unvalue = Packet::<VariableHeaderPacketIdentifier, UnsubscribePayload>::unvalue(value);
+            
+            assert_eq!(unvalue.header.control_type, control_type::UNSUBSCRIBE);
+            assert_eq!(unvalue.header.control_flags, control_flags::QOS0);
+            assert_eq!(unvalue.header.remaining_length_0[0], 18);
+            assert_eq!(unvalue.variable_header.packet_identifier, 1);
+            assert_eq!(unvalue.payload.topic_filter[0], "topic1".to_string());
+            assert_eq!(unvalue.payload.topic_filter[1], "topic2".to_string());
         }
 
         #[test]
