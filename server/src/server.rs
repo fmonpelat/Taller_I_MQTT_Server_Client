@@ -2,7 +2,7 @@ use crate::file_loader::load_contents;
 use crate::logger::{Logger, Logging};
 use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
 use mqtt_packet::mqtt_packet_service::header_packet::{control_type, PacketHeader};
-use mqtt_packet::mqtt_packet_service::payload_packet::{Payload, PublishPayload, SuscribePayload};
+use mqtt_packet::mqtt_packet_service::payload_packet::{Payload, PublishPayload, SuscribePayload, UnsubscribePayload};
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{
     connect_ack_flags, connect_return, VariableHeader, VariableHeaderPacketIdentifier,
     VariableHeaderPublish,
@@ -20,7 +20,7 @@ use std::time::Duration;
 
 type HashPersistanceConnections = HashMap<String, JoinHandle<()>>; // la clave es el ip address
 type HashServerConnections = HashMap<String, HandleClientConnections>; // la clave es el client_id de mqtt
-type HashTopics = HashMap<String, Vec<Sender<Vec<u8>>>>;
+type HashTopics = HashMap<String, Vec<(String,Sender<Vec<u8>>)>>;
 type HashCredentials = HashMap<String, String>;
 #[derive(Clone)]
 pub struct Server {
@@ -386,7 +386,8 @@ impl Server {
                         format!("Error: cannot write: {}", e),
                     ));
                 }
-            }
+            },
+
             control_type::PUBLISH => {
                 logger.debug("Publish packet received".to_string());
                 logger.debug(format!("Peer mqtt publish: {:?}", peer_addr));
@@ -418,7 +419,8 @@ impl Server {
                 tx_server
                     .send(msg_server.clone())
                     .unwrap_or_else(|_| panic!("Cannot proccess publish message {:?}", msg_server));
-            }
+            },
+
             control_type::DISCONNECT => {
                 // TODO investigate what kind of action need to take
                 logger.debug("Disconnect packet received".to_string());
@@ -433,7 +435,8 @@ impl Server {
                     "Peer {} has been removed from hash server connections",
                     peer_addr
                 ));
-            }
+            },
+
             control_type::SUBSCRIBE => {
                 logger.debug("Suscribe packet received".to_string());
                 logger.debug(format!("Peer mqtt suscribe: {:?}", peer_addr));
@@ -468,7 +471,45 @@ impl Server {
                         format!("Error: cannot write: {}", e),
                     ));
                 }
-            }
+            },
+
+            control_type::UNSUBSCRIBE => {
+                logger.debug("Unsubscribe packet received".to_string());
+                logger.debug(format!("Peer mqtt unsubscribe: {:?}", peer_addr));
+
+                let unvalue =
+                    Packet::<VariableHeaderPacketIdentifier, UnsubscribePayload>::unvalue(buff);
+                let packet_identifier = unvalue.variable_header.packet_identifier;
+                // need to get the client identifier and the topics to unsubscribe
+                let topics = unvalue.payload.topic_filter;
+                topics.iter().for_each(
+                    |topic| {
+                        let msg_server = vec![
+                            "unsuscribe".to_string(),
+                            client_id.to_string(),
+                            packet_identifier.to_string(),
+                            topic.to_string(),
+                        ];
+                        tx_server.send(msg_server.clone()).unwrap_or_else(|_| {
+                            panic!("Cannot proccess unsubscribe message {:?}", msg_server)
+                        });
+                    },
+               );
+
+               // enviar el unsuback
+               logger.debug("Sending unsuback packet to client".to_string());
+               let packet = Packet::<VariableHeader, Payload>::new();
+               let packet = packet.unsuback(packet_identifier);
+               if let Err(e) = stream.write_all(&packet.value()) {
+                   logger.debug("Client disconnect".to_string());
+                   return Err(Error::new(
+                       ErrorKind::Other,
+                       format!("Error: cannot write: {}", e),
+                   ));
+               }
+
+            },
+
             control_type::PINGREQ => {
                 logger.info("PingReq packet received".to_string());
                 logger.debug(format!(
@@ -550,7 +591,8 @@ impl Server {
                                                 vector.len(),
                                                 topic
                                             ));
-                                            for tx in vector {
+                                            for val in vector {
+                                                let tx = val.1.clone();
                                                 let packet =
                                                     Packet::<VariableHeader, Payload>::new();
                                                 let packet = packet.publish(
@@ -575,7 +617,8 @@ impl Server {
                                             .to_string(),
                                     );
                                 }
-                            }
+                            },
+
                             // si es subscribe debe guardar el topic name en el hash de topic y asignar el tx obtenido mediante el peer addr sumistrado en msg con el hash de connection
                             // si ya se encuentra el topic name debe hacer push del tx
                             "subscribe" => {
@@ -599,13 +642,32 @@ impl Server {
                                         .unwrap()
                                         .entry(topic.to_string())
                                         .and_modify(|vector| {
-                                            vector.push(tx.to_owned());
+                                            vector.push( (client_id.to_string(),tx.to_owned()));
                                         })
-                                        .or_insert(vec![tx.to_owned()]);
+                                        .or_insert(vec![ (client_id.to_string(),tx.to_owned()) ]);
                                 } else {
                                     logger.debug("Cannot find client Identified".to_string());
                                 }
-                            }
+                            },
+
+                            "unsubscribe" => {
+                                // unsuscribe client_id packet_identifier topic
+                                let client_id = msg[1].as_str();
+                                let _packet_id = (msg[2].as_bytes()[0] as u16) << 8
+                                    | msg[2].as_bytes()[1] as u16;
+                                let topic = &msg[3];
+
+                                if !client_id.is_empty() {
+                                    hash_topics
+                                    .lock()
+                                    .unwrap()
+                                    .entry(topic.to_string())
+                                    .and_modify(|vector| {
+                                        vector.retain(|entry| entry.0 != client_id);
+                                    });   
+                                }
+                                logger.debug(format!("Unsubscribed topic_name: {} for client id: {}", topic, client_id));
+                            },
                             _ => {
                                 logger.debug("Not received any packet type".to_string());
                             }
