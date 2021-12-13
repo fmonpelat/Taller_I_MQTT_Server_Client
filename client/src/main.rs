@@ -213,7 +213,7 @@ fn main() {
                         println!("Non-existent topic name value");
                         continue;
                     }
-                    let packet = packet.suscribe(packet_identifier, topic_names, qos_vec);
+                    let packet = packet.subscribe(packet_identifier, topic_names, qos_vec);
                     println!("--> Subscribe topic: {}", topic_name);
                     client.send(packet.value());
                 }
@@ -299,7 +299,7 @@ fn main() {
                         let qos_vec: Vec<u8> = vec![0];
                         let topic_name = "test1".to_string();
                         let topic_names: Vec<String> = vec![topic_name.clone()];
-                        let packet = packet.suscribe(packet_identifier, topic_names, qos_vec);
+                        let packet = packet.subscribe(packet_identifier, topic_names, qos_vec);
                         println!("--> Subscribe topic: {}", topic_name);
                         client.send(packet.value());
 
