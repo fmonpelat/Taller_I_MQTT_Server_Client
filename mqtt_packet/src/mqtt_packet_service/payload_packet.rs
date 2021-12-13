@@ -226,20 +226,20 @@ impl PacketPublishPayload for PublishPayload {
 
 /// Suscribe has the payload type SuscribePayload
 #[derive(Debug, Default)]
-pub struct SuscribePayload {
+pub struct SubscribePayload {
     pub topic_filter: Vec<String>,
     pub qos: Vec<u8>,
 }
-pub trait PacketPayloadSuscribe {
+pub trait PacketPayloadSubscribe {
     fn value(&self) -> Vec<u8>;
-    fn unvalue(x: Vec<u8>, readed: &mut usize) -> SuscribePayload;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> SubscribePayload;
 }
 
-impl PacketPayloadSuscribe for SuscribePayload {
-    fn unvalue(x: Vec<u8>, readed: &mut usize) -> SuscribePayload {
+impl PacketPayloadSubscribe for SubscribePayload {
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> SubscribePayload {
         *readed = 0;
         if x.is_empty() {
-            return SuscribePayload::default();
+            return SubscribePayload::default();
         }
         let mut index = 0; // index of the payload value
         let mut topic_filter = Vec::new();
@@ -259,7 +259,7 @@ impl PacketPayloadSuscribe for SuscribePayload {
             qos.push(qos_);
         }
         *readed = index;
-        SuscribePayload { topic_filter, qos }
+        SubscribePayload { topic_filter, qos }
     }
 
     fn value(&self) -> Vec<u8> {
@@ -398,7 +398,7 @@ mod tests {
     fn suscribe_payload_test() {
         let topic1 = "topic1";
         let topic2 = "topic2";
-        let payload = SuscribePayload {
+        let payload = SubscribePayload {
             topic_filter: vec![String::from(topic1), String::from(topic2)],
             qos: vec![0, 1],
         };
@@ -424,7 +424,7 @@ mod tests {
         );
         assert_eq!(value[5 + topic1.len() as usize + topic2_len as usize], 1); // qos topic2 is 1
         let readed = &mut 0;
-        let payload_ = SuscribePayload::unvalue(value, readed);
+        let payload_ = SubscribePayload::unvalue(value, readed);
         assert!(payload.topic_filter == payload_.topic_filter);
         assert!(payload.qos == payload_.qos);
     }
