@@ -101,7 +101,7 @@ impl Packet<VariableHeader, Payload> {
             )
             .collect();
 
-        for i in vec {
+            for i in vec {
             res.push(i);
         }
         res
@@ -616,7 +616,7 @@ impl<T, P> Utils for Packet<T, P> {
     fn get_packet_length(vec: &[u8], readed: &mut usize) -> usize {
         *readed = 0;
         let remaining_len = Header::get_remaining_length(vec.to_vec(), readed);
-        // println!("remaining_len: {:?} readed: {:?}", remaining_len, _readed);
+        // println!("remaining_len: {:?} readed: {:?}", remaining_len, readed);
         let remaining = Header::decode_remaining_length(&remaining_len);
         // println!("decoded remaining: {}", remaining);
         remaining as usize
@@ -874,19 +874,14 @@ impl<T, P> ServerPacket for Packet<T, P> {
         let payload = Payload {
             ..Payload::default()
         };
-        let remaining_length = (variable_header.value().len() + payload.value().len()) as u32;
+        let remaining_length = (variable_header.value().len()) as u32;
         header.set_remaining_length(remaining_length);
-
-        // TODO: check if this function can modify the self packet
-        // self.header = header;
-        // self.variable_header = variable_header;
-        // self.payload = payload;
 
         Packet {
             header,
             has_variable_header: true,
             variable_header,
-            has_payload: true,
+            has_payload: false,
             payload,
         }
     }
@@ -1032,7 +1027,7 @@ mod tests {
             );
             let remaining_len: u8 = 20;
             assert_eq!(packet.header.control_type, control_type::SUBSCRIBE);
-            assert_eq!(packet.header.control_flags, control_flags::QOS1);
+            assert_eq!(packet.header.control_flags, control_flags::QOS0);
             assert_eq!(packet.header.remaining_length_0, [remaining_len]);
             assert_eq!(packet.variable_header.packet_identifier, 10);
             assert_eq!(
@@ -1043,13 +1038,13 @@ mod tests {
 
             let value = packet.value();
             // println!("{:?}", value);
-            assert_eq!(value[0], control_type::SUBSCRIBE + control_flags::QOS1);
+            assert_eq!(value[0], control_type::SUBSCRIBE + control_flags::QOS0);
             assert_eq!(value[1], remaining_len);
 
             let unvalue = Packet::<VariableHeaderPacketIdentifier, SuscribePayload>::unvalue(value);
             // println!("{:?}", unvalue);
             assert_eq!(unvalue.header.control_type, control_type::SUBSCRIBE);
-            assert_eq!(unvalue.header.control_flags, control_flags::QOS1);
+            assert_eq!(unvalue.header.control_flags, control_flags::QOS0);
             assert_eq!(unvalue.header.remaining_length_0, [remaining_len]);
             assert_eq!(unvalue.variable_header.packet_identifier, 10);
             assert_eq!(
@@ -1135,37 +1130,25 @@ mod tests {
                 &value[1..value.len()].to_vec(),
                 &mut readed,
             );
-            assert_eq!(remaining_len, 18);
+            assert_eq!(remaining_len, 26);
             assert_eq!(readed, 1);
         }
 
         #[test]
         fn test_unvalue_variableheader_payload() {
-            let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
             let client_identifier = String::from("testId");
-            let connect_stub: Vec<u8> = connect_head_stub
-                .iter()
-                .copied()
-                .chain(
-                    (client_identifier.len() as u16)
-                        .to_be_bytes()
-                        .iter()
-                        .copied()
-                        .chain(client_identifier.as_bytes().iter().copied()),
-                )
-                .collect();
             let packet = Packet::<VariableHeader, Payload>::new();
             let packet = packet.connect(client_identifier);
             let value = packet.value();
             // println!("packet bytes: {:?}", value);
-            let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(value);
+            let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(value.clone());
             // println!("unvalue {:?}", unvalued_packet);
-            assert_eq!(connect_stub, unvalued_packet.value());
+            assert_eq!(value, unvalued_packet.value());
         }
 
         #[test]
         fn check_connect_packet() {
-            let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
+            let connect_head_stub = vec![0x10, 26, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
             let client_identifier = String::from("testId");
             let connect_stub: Vec<u8> = connect_head_stub
                 .iter()
@@ -1175,7 +1158,11 @@ mod tests {
                         .to_be_bytes()
                         .iter()
                         .copied()
-                        .chain(client_identifier.as_bytes().iter().copied()),
+                        .chain(
+                            client_identifier.as_bytes().iter().copied()
+                                .chain(
+                                    vec![0 as u8; 8].iter().copied())
+                        ),
                 )
                 .collect();
             let packet = Packet::<VariableHeader, Payload>::new();
@@ -1194,7 +1181,7 @@ mod tests {
                 unvalued_packet.header.control_flags,
                 control_flags::RESERVED
             );
-            assert_eq!(unvalued_packet.header.remaining_length_0, vec![18]);
+            assert_eq!(unvalued_packet.header.remaining_length_0, vec![26]);
             assert_eq!(
                 unvalued_packet.variable_header.protocol_name,
                 vec![0, 4, 77, 81, 84, 84]
