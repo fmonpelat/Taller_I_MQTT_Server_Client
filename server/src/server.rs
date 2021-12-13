@@ -391,17 +391,18 @@ impl Server {
                 let unvalue = Packet::<VariableHeaderPublish, PublishPayload>::unvalue(buff);
                 let msg_server: Vec<String> = vec![
                     "publish".to_string(),
-                    unvalue.header.get_qos().to_string(),
                     if unvalue.header.get_dup() { 1 } else { 0 }.to_string(),
+                    unvalue.header.get_qos().to_string(),
                     if unvalue.header.get_retain() { 1 } else { 0 }.to_string(),
                     String::from_utf8_lossy(&unvalue.variable_header.topic_name).to_string(),
                     unvalue.payload.message,
                 ];
+
                 match tx_server.send(msg_server.clone()) {
                     Ok(_) => {
                         logger.debug(format!("Message sent to server to process publish for client: {}", client_id));
                         // send puback if qos is 1
-                        if unvalue.header.control_flags == control_flags::QOS1 {
+                        if unvalue.header.get_qos() == control_flags::QOS1 {
                             logger.debug("Identified QoS1 flag. PubAck sent".to_string());
                             let packet = Packet::<VariableHeaderPacketIdentifier, Payload>::new();
                             let packet = packet.puback(packet_id as u16);
