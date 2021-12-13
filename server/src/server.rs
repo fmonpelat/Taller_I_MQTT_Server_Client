@@ -2,7 +2,9 @@ use crate::file_loader::load_contents;
 use crate::logger::{Logger, Logging};
 use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
 use mqtt_packet::mqtt_packet_service::header_packet::{control_type, PacketHeader};
-use mqtt_packet::mqtt_packet_service::payload_packet::{Payload, PublishPayload, SuscribePayload};
+use mqtt_packet::mqtt_packet_service::payload_packet::{
+    Payload, PublishPayload, SuscribePayload, UnsubscribePayload, suback_return_codes,
+};
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{
     connect_ack_flags, connect_return, VariableHeader, VariableHeaderPacketIdentifier,
     VariableHeaderPublish,
@@ -11,7 +13,7 @@ use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket, Utils
 use rand::Rng;
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Read, Result, Write};
-use std::net::{Shutdown, TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -20,7 +22,7 @@ use std::time::Duration;
 
 type HashPersistanceConnections = HashMap<String, JoinHandle<()>>; // la clave es el ip address
 type HashServerConnections = HashMap<String, HandleClientConnections>; // la clave es el client_id de mqtt
-type HashTopics = HashMap<String, Vec<Sender<Vec<u8>>>>;
+type HashTopics = HashMap<String, Vec<(String, Sender<Vec<u8>>)>>;
 type HashCredentials = HashMap<String, String>;
 #[derive(Clone)]
 pub struct Server {
@@ -38,23 +40,31 @@ pub struct Server {
 pub struct HandleClientConnections {
     tx: Arc<Mutex<Sender<Vec<u8>>>>,
     rx: Arc<Mutex<Receiver<Vec<u8>>>>,
+    #[allow(dead_code)]
     peer: Arc<Mutex<String>>,
 }
 
 #[allow(clippy::unit_arg)]
 impl Server {
-    pub fn new(server_address: String, server_port: String, file_source: &str) -> Server {
-        // crear hash de credentials como username => password
-        let file_config = "src/credential.yaml";
-        let mut hash_credentials = load_contents(file_config);
-        
+    pub fn new(
+        server_address: String,
+        server_port: String,
+        file_source: &str,
+        credentials_file: &str,
+    ) -> Server {
+        let hash_credentials = if !credentials_file.is_empty() {
+            load_contents(credentials_file)
+        } else {
+            HashMap::new()
+        };
+
         let hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>> =
             Arc::new(Mutex::new(HashMap::new()));
         let hash_server_connections: Arc<Mutex<HashServerConnections>> =
             Arc::new(Mutex::new(HashMap::new()));
         let hash_topics: Arc<Mutex<HashTopics>> = Arc::new(Mutex::new(HashMap::new()));
         let (tx_server, rx_server) = channel::<Vec<String>>();
-        //TODO Check return and see how call to the function
+
         let server = Server {
             server_address: Arc::new(server_address),
             server_port: Arc::new(server_port),
@@ -90,65 +100,52 @@ impl Server {
             logger: Arc<Logger>,
             hash_server_connections: Arc<Mutex<HashServerConnections>>,
             hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
+            hash_credentials: Arc<Mutex<HashCredentials>>,
             mut client_connections: HandleClientConnections,
             tx_server: Sender<Vec<String>>,
         ) -> Result<()> {
             let mut buff = [0_u8; 1024];
             let mut _client_id = String::new();
+            #[allow(unreachable_code)]
             Ok(loop {
-                stream
-                    .set_read_timeout(Some(Duration::from_millis(30)))?;
-                match stream.read(&mut buff) {
-                    Ok(_size) => {
-                        if _size > 0 {
-                            let control_type = buff[0];
-                            logger.debug(format!(
-                                "Check if a MQTT PACKET is received: {:?}",
-                                control_type
-                            ));
-                            if Packet::<VariableHeader, Payload>::is_mqtt_packet(&buff) {
-                                logger.debug(format!("Found a MQTT packet: {:?}", control_type));
-                                match Server::handle_packet(
-                                    buff.to_vec(),
-                                    &mut stream,
-                                    logger.clone(),
-                                    hash_server_connections.clone(),
-                                    hash_persistance_connections.clone(),
-                                    hash_credentials.clone(),
-                                    &mut client_connections,
-                                    tx_server.clone(),
-                                    &mut _client_id,
-                                ) {
-                                    Ok(client_id) => {
-                                        logger.debug(format!(
-                                            "Packet from peer {} and client id: {} has been processed",
-                                            stream.peer_addr()?, client_id
-                                        ));
-                                        logger.debug("Cleaning buffer".to_string());
-                                        buff = [0_u8; 1024];
-                                    }
-                                    Err(e) => {
-                                        logger.debug(format!("Error: {}", e));
-                                    }
+                stream.set_read_timeout(Some(Duration::from_millis(30)))?;
+                if let Ok(_size) = stream.read(&mut buff) {
+                    if _size > 0 {
+                        let control_type = buff[0];
+                        logger.debug("Check if a MQTT PACKET is received".to_string());
+                        if Packet::<VariableHeader, Payload>::is_mqtt_packet(&buff) {
+                            logger.debug(format!("Found a MQTT packet: {:?}", control_type));
+                            match Server::handle_packet(
+                                buff.to_vec(),
+                                &mut stream,
+                                logger.clone(),
+                                hash_server_connections.clone(),
+                                hash_persistance_connections.clone(),
+                                hash_credentials.clone(),
+                                &mut client_connections,
+                                tx_server.clone(),
+                                &mut _client_id,
+                            ) {
+                                Ok(client_id) => {
+                                    logger.debug(format!(
+                                        "Packet from peer {} and client id: {} has been processed",
+                                        stream.peer_addr()?,
+                                        client_id
+                                    ));
+                                    logger.debug("Cleaning buffer".to_string());
+                                    buff = [0_u8; 1024];
                                 }
-                            } else {
-                                logger.debug(
-                                    "Clean buffer to continue reading from stream".to_string(),
-                                );
-                                buff = [0_u8; 1024];
-                            };
+                                Err(e) => {
+                                    logger.debug(format!("Error: {}", e));
+                                }
+                            }
+                        } else {
+                            logger
+                                .debug("Clean buffer to continue reading from stream".to_string());
+                            buff = [0_u8; 1024];
                         };
-                    }
-                    Err(_) => {
-                        // logger.debug(format!(
-                        //     "An error occurred, terminating connection with {}",
-                        //     stream.peer_addr()?
-                        // ));
-                        // stream.shutdown(Shutdown::Both)?;
-                        // break;
-                    }
+                    };
                 }
-
                 // TODO, read rx channel of this thread and act like a proxy (write drectly to stream)
                 let client_rx = &*client_connections.rx.lock().unwrap();
                 if let Ok(msg) = client_rx.try_recv() {
@@ -177,6 +174,7 @@ impl Server {
                     logger.clone(),
                     hash_server_connections,
                     hash_persistance_connections,
+                    hash_credentials,
                     handle_client_connections,
                     tx_server,
                 ) {
@@ -275,14 +273,45 @@ impl Server {
                 client_identifier
             ));
 
-            // get the user and password from the packet
-            let user = unvalued_packet.payload.user;
-            let password = unvalued_packet.payload.password;
-            // get user and password from the filename
-            if user {
+            // Credentials check
+            if !hash_credentials.lock().unwrap().is_empty() {
 
+                // get the user and password from the packet
+                let user = unvalued_packet.payload.user_name;
+                let password = unvalued_packet.payload.password;
+                // get user and password from the filename
+                if !user.is_empty() || !password.is_empty() {
+                    // searching for the user and password in the hashmap and then compare password with value
+                    let hash_credentials = hash_credentials.lock().unwrap();
+                    match hash_credentials.get(user.as_str()) {
+                        Some(password_saved) => {
+                            if *password_saved != password {
+                                logger.debug(format!("User {} password is incorrect", user));
+                                return Err(Error::new(
+                                    ErrorKind::Other,
+                                    format!("Client Connection with Client identifier: {} refused, user password incorrect", client_identifier),
+                                ));
+                            }
+                        }
+                        None => {
+                            logger.debug(format!("User {} not found in server credential file", user));
+                            return Err(Error::new(
+                                ErrorKind::Other,
+                                format!("Client Connection with Client identifier: {} refused, user not found", client_identifier),
+                            ));
+                        }
+                    }
+                } else {
+                    logger.debug(format!(
+                        "User and password not found in connecting packet for client {}, connecting anyway",
+                        client_identifier
+                    ));
+                }
+            } else {
+                logger.debug("No credentials registered for this server".to_string());
             }
-
+            // End credentials check
+            
             if Server::get_id_persistance_connections(
                 client_identifier,
                 hash_server_connections.clone(),
@@ -314,10 +343,11 @@ impl Server {
                     };
                 }
 
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "Error, client already connected",
-                ));
+                // do not return error this causes not to send a connack to client on reconnect
+                // return Err(Error::new(
+                //     ErrorKind::Other,
+                //     "Error, client already connected",
+                // ));
             }
             // si no lo encuentra debemos seguir sin dar error ...
         }
@@ -353,38 +383,47 @@ impl Server {
                     ));
                 }
             }
+
             control_type::PUBLISH => {
                 logger.debug("Publish packet received".to_string());
                 logger.debug(format!("Peer mqtt publish: {:?}", peer_addr));
 
                 let unvalue = Packet::<VariableHeaderPublish, PublishPayload>::unvalue(buff);
-                if unvalue.header.control_flags == control_flags::QOS1 {
-                    logger.debug("Identified QoS1 flag. PubAck sent".to_string());
-                    let packet = Packet::<VariableHeaderPacketIdentifier, Payload>::new();
-                    let packet = packet.puback(packet_id as u16);
-
-                    if let Err(e) = stream.write_all(&packet.value()) {
-                        logger.debug("Client disconnect".to_string());
-                        return Err(Error::new(
-                            ErrorKind::Other,
-                            format!("Error: cannot write: {}", e),
-                        ));
-                    }
-                } else {
-                    logger.debug("Identified QoS0 flag. Nothing to do".to_string());
-                }
                 let msg_server: Vec<String> = vec![
                     "publish".to_string(),
-                    unvalue.header.get_qos().to_string(),
                     if unvalue.header.get_dup() { 1 } else { 0 }.to_string(),
+                    unvalue.header.get_qos().to_string(),
                     if unvalue.header.get_retain() { 1 } else { 0 }.to_string(),
                     String::from_utf8_lossy(&unvalue.variable_header.topic_name).to_string(),
                     unvalue.payload.message,
                 ];
-                tx_server
-                    .send(msg_server.clone())
-                    .unwrap_or_else(|_| panic!("Cannot proccess publish message {:?}", msg_server));
+
+                match tx_server.send(msg_server.clone()) {
+                    Ok(_) => {
+                        logger.debug(format!("Message sent to server to process publish for client: {}", client_id));
+                        // send puback if qos is 1
+                        if unvalue.header.get_qos() == control_flags::QOS1 {
+                            logger.debug("Identified QoS1 flag. PubAck sent".to_string());
+                            let packet = Packet::<VariableHeaderPacketIdentifier, Payload>::new();
+                            let packet = packet.puback(packet_id as u16);
+        
+                            if let Err(e) = stream.write_all(&packet.value()) {
+                                logger.debug("Client disconnect".to_string());
+                                return Err(Error::new(
+                                    ErrorKind::Other,
+                                    format!("Error: cannot write: {}", e),
+                                ));
+                            }
+                        } else {
+                            logger.debug("Identified QoS0 flag. Nothing to do".to_string());
+                        }
+                    }
+                    Err(e) => {
+                        logger.debug(format!("Error sending message to server to process publish from client: {} error: {}", client_id ,e));
+                    }
+                };
             }
+
             control_type::DISCONNECT => {
                 // TODO investigate what kind of action need to take
                 logger.debug("Disconnect packet received".to_string());
@@ -400,6 +439,7 @@ impl Server {
                     peer_addr
                 ));
             }
+
             control_type::SUBSCRIBE => {
                 logger.debug("Suscribe packet received".to_string());
                 logger.debug(format!("Peer mqtt suscribe: {:?}", peer_addr));
@@ -407,26 +447,40 @@ impl Server {
                 let unvalue =
                     Packet::<VariableHeaderPacketIdentifier, SuscribePayload>::unvalue(buff);
                 let packet_identifier = unvalue.variable_header.packet_identifier;
-                let qos = unvalue.payload.qos;
                 let topics = unvalue.payload.topic_filter;
+                let qos_vec = unvalue.payload.qos;
 
+                let mut qos_result = Vec::<u8>::new();
                 // enviando al tx del server los topics suscriptos
                 logger.debug("Sending tx server to the subcribed topics".to_string());
-                for topic in topics {
+                for (index,topic) in topics.iter().enumerate() {
                     let msg_server = vec![
                         "subscribe".to_string(),
                         client_id.to_string(),
                         packet_identifier.to_string(),
                         topic.to_string(),
                     ];
-                    tx_server.send(msg_server.clone()).unwrap_or_else(|_| {
-                        panic!("Cannot proccess subscribe message {:?}", msg_server)
-                    });
+                    match tx_server.send(msg_server.clone()) {
+                        Ok(_) => {
+                            logger.debug(format!(
+                                "Suscribe topic {} sent to server",
+                                topic
+                            ));
+                            qos_result.push(qos_vec[index]);
+                        }
+                        Err(e) => {
+                            logger.debug(format!(
+                                "Error sending suscribe topic {} to server: {}",
+                                topic, e
+                            ));
+                            qos_result.push(suback_return_codes::FAILURE);
+                        }
+                    };
                 }
                 // enviar el suback
                 logger.debug("Sending suback packet to client".to_string());
                 let packet = Packet::<VariableHeader, Payload>::new();
-                let packet = packet.suback(packet_identifier, qos);
+                let packet = packet.suback(packet_identifier, qos_result);
                 if let Err(e) = stream.write_all(&packet.value()) {
                     logger.debug("Client disconnect".to_string());
                     return Err(Error::new(
@@ -435,6 +489,44 @@ impl Server {
                     ));
                 }
             }
+
+            control_type::UNSUBSCRIBE => {
+                logger.debug("Unsubscribe packet received".to_string());
+                logger.debug(format!("Peer mqtt unsubscribe: {:?}", peer_addr));
+
+                let unvalue =
+                    Packet::<VariableHeaderPacketIdentifier, UnsubscribePayload>::unvalue(buff);
+                let packet_identifier = unvalue.variable_header.packet_identifier;
+                // need to get the client identifier and the topics to unsubscribe
+                let topics = unvalue.payload.topic_filter;
+                topics.iter().for_each(|topic| {
+                    let msg_server = vec![
+                        "unsubscribe".to_string(),
+                        client_id.to_string(),
+                        packet_identifier.to_string(),
+                        topic.to_string(),
+                    ];
+                    tx_server.send(msg_server.clone()).unwrap_or_else(|_| {
+                        panic!("Cannot proccess unsubscribe message {:?}", msg_server)
+                    });
+                });
+
+                let qos = unvalue.header.get_qos();
+                // send the unsuback if the qos is set to 1
+                if qos == control_flags::QOS0 {
+                    logger.debug(format!("Sending unsuback packet to client qos set to: {}", qos));
+                    let packet = Packet::<VariableHeader, Payload>::new();
+                    let packet = packet.unsuback(packet_identifier);
+                    if let Err(e) = stream.write_all(&packet.value()) {
+                        logger.debug("Client disconnect".to_string());
+                        return Err(Error::new(
+                            ErrorKind::Other,
+                            format!("Error: cannot write: {}", e),
+                        ));
+                    }
+                }
+            }
+
             control_type::PINGREQ => {
                 logger.info("PingReq packet received".to_string());
                 logger.debug(format!(
@@ -516,7 +608,8 @@ impl Server {
                                                 vector.len(),
                                                 topic
                                             ));
-                                            for tx in vector {
+                                            for val in vector {
+                                                let tx = val.1.clone();
                                                 let packet =
                                                     Packet::<VariableHeader, Payload>::new();
                                                 let packet = packet.publish(
@@ -542,6 +635,7 @@ impl Server {
                                     );
                                 }
                             }
+
                             // si es subscribe debe guardar el topic name en el hash de topic y asignar el tx obtenido mediante el peer addr sumistrado en msg con el hash de connection
                             // si ya se encuentra el topic name debe hacer push del tx
                             "subscribe" => {
@@ -565,15 +659,42 @@ impl Server {
                                         .unwrap()
                                         .entry(topic.to_string())
                                         .and_modify(|vector| {
-                                            vector.push(tx.to_owned());
+                                            vector.push((client_id.to_string(), tx.to_owned()));
                                         })
-                                        .or_insert(vec![tx.to_owned()]);
+                                        .or_insert_with(|| {
+                                            vec![(client_id.to_string(), tx.to_owned())]
+                                        });
                                 } else {
                                     logger.debug("Cannot find client Identified".to_string());
                                 }
                             }
+
+                            "unsubscribe" => {
+                                // unsuscribe client_id packet_identifier topic
+                                let client_id = msg[1].as_str();
+                                let _packet_id = (msg[2].as_bytes()[0] as u16) << 8
+                                    | msg[2].as_bytes()[1] as u16;
+                                let topic = &msg[3];
+
+                                if !client_id.is_empty() {
+                                    hash_topics
+                                        .lock()
+                                        .unwrap()
+                                        .entry(topic.to_string())
+                                        .and_modify(|vector| {
+                                            vector.retain(|entry| entry.0 != client_id);
+                                        });
+                                }
+                                logger.debug(format!(
+                                    "Unsubscribed topic_name: {} for client id: {}",
+                                    topic, client_id
+                                ));
+                            }
                             _ => {
-                                logger.debug("Not received any packet type".to_string());
+                                logger.debug(format!(
+                                    "Not received any known packet type, received: {}",
+                                    packet_type
+                                ));
                             }
                         };
                         // logger.debug("Thread message handler update topic hash".to_string());

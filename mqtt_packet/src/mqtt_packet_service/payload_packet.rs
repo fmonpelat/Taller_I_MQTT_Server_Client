@@ -181,11 +181,7 @@ impl PacketPayload for Payload {
             .iter()
             .map(|x| {
                 let x_ = (x.to_string().len() as u16).to_be_bytes();
-                payload_vec.extend(if !x.to_string().is_empty() {
-                    x_.iter()
-                } else {
-                    [].iter()
-                });
+                payload_vec.extend(x_.iter());
                 payload_vec.extend(x.to_string().as_bytes());
                 x.to_string()
             })
@@ -283,6 +279,56 @@ impl PacketPayloadSuscribe for SuscribePayload {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct UnsubscribePayload {
+    pub topic_filter: Vec<String>,
+}
+pub trait PacketUnsubscribePayload {
+    fn value(&self) -> Vec<u8>;
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> UnsubscribePayload;
+}
+
+impl PacketUnsubscribePayload for UnsubscribePayload {
+    fn unvalue(x: Vec<u8>, readed: &mut usize) -> UnsubscribePayload {
+        *readed = 0;
+        if x.is_empty() {
+            return UnsubscribePayload::default();
+        }
+        let mut index = 0; // index of the payload value
+        let mut topic_filter = Vec::new();
+
+        while index < x.len() {
+            let topic_filter_len = x[index] as u16 + (x[index + 1] as u16);
+            index += 2;
+            let topic_filter_ =
+                String::from_utf8(x[index..(index + topic_filter_len as usize)].to_vec())
+                    .unwrap_or_else(|_| String::from("")); // topic_filter default empty as error
+
+            index += topic_filter_len as usize; // index of the next topic_filter length
+            topic_filter.push(topic_filter_);
+        }
+        *readed = index;
+        UnsubscribePayload { topic_filter }
+    }
+
+    fn value(&self) -> Vec<u8> {
+        let mut payload_vec: Vec<u8> = Vec::with_capacity(2048); // 2KB max payload
+        let mut i: usize = 0;
+        self.topic_filter.iter().for_each(|x| {
+            let x_ = (x.len() as u16).to_be_bytes();
+            payload_vec.extend(x_); // extend payload_vec with topic_filter[i] length
+            payload_vec.extend(x.as_bytes()); // extend payload_vec with topic_filter[i]
+            i += 1;
+        });
+        if payload_vec.is_empty() {
+            return vec![];
+        }
+        payload_vec
+    }
+}
+
+
+
 /// Suscribe has the payload type SuscribePayload
 #[derive(Debug, Default)]
 pub struct SubackPayload {
@@ -321,6 +367,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unsuscribe_payload_test() {
+        let mut readed = 0;
+        let payload = UnsubscribePayload {
+            topic_filter: vec![String::from("some_topic"), String::from("some_topic2")],
+        };
+        let payload_ = payload.value();
+        let payload_ = UnsubscribePayload::unvalue(payload_, &mut readed);
+        assert_eq!(payload.topic_filter, payload_.topic_filter);
+    }
+
+    #[test]
     fn suback_payload_test() {
         let mut readed = 0;
         let payload = SubackPayload {
@@ -346,7 +403,6 @@ mod tests {
             qos: vec![0, 1],
         };
         let value = payload.value();
-        println!("value: {:?}", value);
         assert_eq!(value.len(), topic1.len() + topic2.len() + 4 + 2); // 4 bytes for topic_filter length and 2 bytes for qos
         assert_eq!((value[0] + value[1]) as u8, topic1.len() as u8);
         assert_eq!(
@@ -369,7 +425,6 @@ mod tests {
         assert_eq!(value[5 + topic1.len() as usize + topic2_len as usize], 1); // qos topic2 is 1
         let readed = &mut 0;
         let payload_ = SuscribePayload::unvalue(value, readed);
-        println!("payload: {:?}", payload_);
         assert!(payload.topic_filter == payload_.topic_filter);
         assert!(payload.qos == payload_.qos);
     }
@@ -409,6 +464,24 @@ mod tests {
         assert_eq!(payload.user_name, unvalue.user_name);
         assert_eq!(payload.password, unvalue.password);
         assert_eq!(readed, value.len());
+
+        let payload = Payload {
+            client_identifier: client_identifier.to_string(),
+            will_topic: "".to_string(),
+            will_message: "".to_string(),
+            user_name: "user_name_test".to_string(),
+            password: "password_test".to_string(),
+        };
+        let value: Vec<u8> = payload.value();
+        let mut readed = 0;
+        let unvalue = Payload::unvalue(value.clone(), &mut readed);
+        assert_eq!(payload.client_identifier, unvalue.client_identifier);
+        assert_eq!(payload.will_topic, unvalue.will_topic);
+        assert_eq!(payload.will_message, unvalue.will_message);
+        assert_eq!(payload.user_name, unvalue.user_name);
+        assert_eq!(payload.password, unvalue.password);
+        assert_eq!(readed, value.len());
+
     }
 
     #[test]

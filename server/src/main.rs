@@ -18,9 +18,12 @@ fn main() -> Result<()> {
     let logfile = config
         .get("logfile")
         .unwrap_or_else(|| panic!("Cannot found logfile in config"));
+    let credentials_file = config
+        .get("credentials_file")
+        .unwrap_or_else(|| panic!("Cannot found credentials_file in config"));
     let logger = Logger::new(logfile, true);
 
-    let server = Server::new(host.to_owned(), port.to_owned(), logfile);
+    let server = Server::new(host.to_owned(), port.to_owned(), logfile, credentials_file);
 
     match server.listening() {
         Ok(_) => {
