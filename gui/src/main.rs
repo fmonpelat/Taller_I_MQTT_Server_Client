@@ -1,5 +1,5 @@
 use gtk::prelude::*;
-use gtk::{ApplicationWindow, Builder};
+use gtk::{ApplicationWindow, Builder, Button};
 use gtk::prelude::EntryExt;
 use gtk::prelude::ToggleButtonExt;
 use client::client::Client;
@@ -12,7 +12,7 @@ use glib;
 const MESSAGE_CONNECTION_START: &str = "Connecting to server...";
 const MESSAGE_CONNECTION_FAIL: &str = "Connection failed, please check your settings";
 
-const CONN_RETRIES: usize = 5;
+const CONN_RETRIES: usize = 20;
 
 fn build_ui(application: &gtk::Application) {
     let glade_src = include_str!("ui_mqtt.ui");
@@ -41,6 +41,7 @@ fn build_ui(application: &gtk::Application) {
     let connect_button: gtk::Button = builder.object("connect_button").expect("Couldn't get connect_button");
     let publish_button: gtk::Button = builder.object("publish_button").expect("Couldn't get publish_button");
     let text_view: gtk::TextView = builder.object("message_view").expect("Couldn't get message_view");
+    let subscription_button: gtk::Button = builder.object("subscription_button").expect("Couldn't get subscription_button");
     // send client message from rx through channel tx
     let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
@@ -48,6 +49,7 @@ fn build_ui(application: &gtk::Application) {
     let client = Arc::new(Mutex::new(Client::new()));
     let builder = Arc::new(Mutex::new(builder));
     
+    // Connect Button clicked event
     {
         let client = client.clone();
         let builder = builder.clone();
@@ -166,8 +168,7 @@ fn build_ui(application: &gtk::Application) {
         });
     }
 
-
-    // instanciate text view to display messages from client
+    // Window Buffer updated
     let buffer = text_view.buffer().expect("cannot read buffer");
     let mut iter = buffer.end_iter();
 
@@ -183,6 +184,7 @@ fn build_ui(application: &gtk::Application) {
         glib::Continue(true)
     });
 
+    // Publish Button clicked event
     {
         let client = client.clone();
         let builder = builder.clone();
@@ -203,8 +205,26 @@ fn build_ui(application: &gtk::Application) {
         });
     }
 
+    //// Subscribe button clicked event
+    //{
+    //    let client = client.clone();
+    //    let builder = builder.clone();
+    //    subscription_button.connect_clicked(move |_| {
+    //        let builder = builder.lock().unwrap();
+    //        let client = client.lock().unwrap();
+    //        
+    //        // make new subscribe grid
+    //        let subscribe_grid: gtk::Grid = builder.object("subscribe_grid").expect("Couldn't get subscribe_grid");
+    //        let subscribe_button = Button::with_label("Subscribe");
+    //        let input = gtk::Entry::new();
+//
+    //       
+    //    });
+//
+    //}
 }
 
+// Messages enum for messages widget on connected screen 
 enum Message {
     UpdateBuffer(String),
 }
