@@ -3,7 +3,7 @@ use crate::logger::{Logger, Logging};
 use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
 use mqtt_packet::mqtt_packet_service::header_packet::{control_type, PacketHeader};
 use mqtt_packet::mqtt_packet_service::payload_packet::{
-    Payload, PublishPayload, SuscribePayload, UnsubscribePayload,
+    Payload, PublishPayload, SuscribePayload, UnsubscribePayload, suback_return_codes,
 };
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{
     connect_ack_flags, connect_return, VariableHeader, VariableHeaderPacketIdentifier,
@@ -389,21 +389,6 @@ impl Server {
                 logger.debug(format!("Peer mqtt publish: {:?}", peer_addr));
 
                 let unvalue = Packet::<VariableHeaderPublish, PublishPayload>::unvalue(buff);
-                if unvalue.header.control_flags == control_flags::QOS1 {
-                    logger.debug("Identified QoS1 flag. PubAck sent".to_string());
-                    let packet = Packet::<VariableHeaderPacketIdentifier, Payload>::new();
-                    let packet = packet.puback(packet_id as u16);
-
-                    if let Err(e) = stream.write_all(&packet.value()) {
-                        logger.debug("Client disconnect".to_string());
-                        return Err(Error::new(
-                            ErrorKind::Other,
-                            format!("Error: cannot write: {}", e),
-                        ));
-                    }
-                } else {
-                    logger.debug("Identified QoS0 flag. Nothing to do".to_string());
-                }
                 let msg_server: Vec<String> = vec![
                     "publish".to_string(),
                     unvalue.header.get_qos().to_string(),
@@ -412,9 +397,30 @@ impl Server {
                     String::from_utf8_lossy(&unvalue.variable_header.topic_name).to_string(),
                     unvalue.payload.message,
                 ];
-                tx_server
-                    .send(msg_server.clone())
-                    .unwrap_or_else(|_| panic!("Cannot proccess publish message {:?}", msg_server));
+                match tx_server.send(msg_server.clone()) {
+                    Ok(_) => {
+                        logger.debug(format!("Message sent to server to process publish for client: {}", client_id));
+                        // send puback if qos is 1
+                        if unvalue.header.control_flags == control_flags::QOS1 {
+                            logger.debug("Identified QoS1 flag. PubAck sent".to_string());
+                            let packet = Packet::<VariableHeaderPacketIdentifier, Payload>::new();
+                            let packet = packet.puback(packet_id as u16);
+        
+                            if let Err(e) = stream.write_all(&packet.value()) {
+                                logger.debug("Client disconnect".to_string());
+                                return Err(Error::new(
+                                    ErrorKind::Other,
+                                    format!("Error: cannot write: {}", e),
+                                ));
+                            }
+                        } else {
+                            logger.debug("Identified QoS0 flag. Nothing to do".to_string());
+                        }
+                    }
+                    Err(e) => {
+                        logger.debug(format!("Error sending message to server to process publish from client: {} error: {}", client_id ,e));
+                    }
+                };
             }
 
             control_type::DISCONNECT => {
@@ -440,26 +446,40 @@ impl Server {
                 let unvalue =
                     Packet::<VariableHeaderPacketIdentifier, SuscribePayload>::unvalue(buff);
                 let packet_identifier = unvalue.variable_header.packet_identifier;
-                let qos = unvalue.payload.qos;
                 let topics = unvalue.payload.topic_filter;
+                let qos_vec = unvalue.payload.qos;
 
+                let mut qos_result = Vec::<u8>::new();
                 // enviando al tx del server los topics suscriptos
                 logger.debug("Sending tx server to the subcribed topics".to_string());
-                for topic in topics {
+                for (index,topic) in topics.iter().enumerate() {
                     let msg_server = vec![
                         "subscribe".to_string(),
                         client_id.to_string(),
                         packet_identifier.to_string(),
                         topic.to_string(),
                     ];
-                    tx_server.send(msg_server.clone()).unwrap_or_else(|_| {
-                        panic!("Cannot proccess subscribe message {:?}", msg_server)
-                    });
+                    match tx_server.send(msg_server.clone()) {
+                        Ok(_) => {
+                            logger.debug(format!(
+                                "Suscribe topic {} sent to server",
+                                topic
+                            ));
+                            qos_result.push(qos_vec[index]);
+                        }
+                        Err(e) => {
+                            logger.debug(format!(
+                                "Error sending suscribe topic {} to server: {}",
+                                topic, e
+                            ));
+                            qos_result.push(suback_return_codes::FAILURE);
+                        }
+                    };
                 }
                 // enviar el suback
                 logger.debug("Sending suback packet to client".to_string());
                 let packet = Packet::<VariableHeader, Payload>::new();
-                let packet = packet.suback(packet_identifier, qos);
+                let packet = packet.suback(packet_identifier, qos_result);
                 if let Err(e) = stream.write_all(&packet.value()) {
                     logger.debug("Client disconnect".to_string());
                     return Err(Error::new(
