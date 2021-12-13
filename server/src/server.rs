@@ -513,7 +513,7 @@ impl Server {
 
                 let qos = unvalue.header.get_qos();
                 // send the unsuback if the qos is set to 1
-                if qos == control_flags::QOS1 {
+                if qos == control_flags::QOS0 {
                     logger.debug(format!("Sending unsuback packet to client qos set to: {}", qos));
                     let packet = Packet::<VariableHeader, Payload>::new();
                     let packet = packet.unsuback(packet_identifier);
