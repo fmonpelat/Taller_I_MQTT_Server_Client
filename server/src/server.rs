@@ -490,16 +490,19 @@ impl Server {
                     });
                 });
 
-                // enviar el unsuback
-                logger.debug("Sending unsuback packet to client".to_string());
-                let packet = Packet::<VariableHeader, Payload>::new();
-                let packet = packet.unsuback(packet_identifier);
-                if let Err(e) = stream.write_all(&packet.value()) {
-                    logger.debug("Client disconnect".to_string());
-                    return Err(Error::new(
-                        ErrorKind::Other,
-                        format!("Error: cannot write: {}", e),
-                    ));
+                let qos = unvalue.header.get_qos();
+                // send the unsuback if the qos is set to 1
+                if qos == control_flags::QOS1 {
+                    logger.debug(format!("Sending unsuback packet to client qos set to: {}", qos));
+                    let packet = Packet::<VariableHeader, Payload>::new();
+                    let packet = packet.unsuback(packet_identifier);
+                    if let Err(e) = stream.write_all(&packet.value()) {
+                        logger.debug("Client disconnect".to_string());
+                        return Err(Error::new(
+                            ErrorKind::Other,
+                            format!("Error: cannot write: {}", e),
+                        ));
+                    }
                 }
             }
 
