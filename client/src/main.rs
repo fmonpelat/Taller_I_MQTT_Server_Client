@@ -285,7 +285,7 @@ fn main() {
                         let packet_identifier = client.get_packet_identifier();
                         let packet = packet.publish(
                             0,
-                            0,
+                            1,
                             0,
                             packet_identifier,
                             "hola".to_string(),
