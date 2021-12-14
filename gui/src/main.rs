@@ -14,6 +14,7 @@ const MESSAGE_CONNECTION_FAIL: &str = "Connection failed, please check your sett
 
 const CONN_RETRIES: usize = 20;
 
+
 fn build_ui(application: &gtk::Application) {
     let glade_src = include_str!("ui_mqtt.ui");
     let builder = Builder::from_string(glade_src);
@@ -24,6 +25,7 @@ fn build_ui(application: &gtk::Application) {
     let credential_grid: Grid = builder.object("credential_grid").expect("Couldn't get credential_grid");
     let credential_checkbox: CheckButton = builder.object("check_connect_secured").expect("Couldn't get credentials_checkbox");
     credential_grid.hide();
+
     credential_checkbox.connect_toggled(move |credential_checkbox| {
         if credential_checkbox.is_active() {
             credential_grid.show();
@@ -45,7 +47,9 @@ fn build_ui(application: &gtk::Application) {
     window.set_application(Some(application));
     window.show();
 
+    // Main objects used for interaction with the client
     let connect_button: Button = builder.object("connect_button").expect("Couldn't get connect_button");
+    let disconnect_button: Button = builder.object("disconnect_button").expect("Couldn't get disconnect_button");
     let publish_button: Button = builder.object("publish_button").expect("Couldn't get publish_button");
     let text_view: TextView = builder.object("message_view").expect("Couldn't get message_view");
     let subscription_button: Button = builder.object("subscription_button").expect("Couldn't get subscription_button");
@@ -53,13 +57,17 @@ fn build_ui(application: &gtk::Application) {
     
     // send client message from rx through channel tx
     let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-
     let sender = Arc::new(Mutex::new(sender));
+
+    // creating mqtt client 
     let mut client = Client::new();
-    client.set_keepalive_interval(120);
+    client.set_keepalive_interval(120); // set keepalive interval to 2 minutes
+
+    // wrapping shared resources for thread safety
     let client = Arc::new(Mutex::new(client));
     let builder = Arc::new(Mutex::new(builder));
     let window = Arc::new(Mutex::new(window));
+
     // Connect Button clicked event
     {
         let client = client.clone();
@@ -70,6 +78,8 @@ fn build_ui(application: &gtk::Application) {
         connect_button.connect_clicked(move |_| {
             let window = window.lock().unwrap();
             let mut client = client.lock().unwrap();
+            let client_new = Client::new();  // begin with new client
+            *client = client_new;
             let builder = builder.lock().unwrap();
             // get host and port from text entry
             let host_entry: gtk::Entry = builder.object("server_host_entry").expect("Couldn't get host_entry");
@@ -158,7 +168,8 @@ fn build_ui(application: &gtk::Application) {
                 let window_connection: ApplicationWindow = builder.object("window_connection").expect("Couldn't get main_window");
                 
                 let sender=sender.clone();
-                thread::spawn(move || {
+                println!("CREATING THREAD");
+                thread::Builder::new().name("thread_receiver_messages".to_string()).spawn(move || {
                     loop {
                         thread::sleep(Duration::from_millis(10));
                         let _sender = sender.lock().unwrap();
@@ -169,12 +180,12 @@ fn build_ui(application: &gtk::Application) {
                             },
                             Err(e) => {
                                 println!("--> Error receiving message: {}", e);
+                                break;
                             }
                         }
                         // Sending fails if the receiver is closed
                     }
-                });
-
+                }).expect("Couldn't create thread_receiver_messages");
                 window_connection.show();
             }
         });
@@ -242,11 +253,11 @@ fn build_ui(application: &gtk::Application) {
 
           // create new list box row with the subscribe topic
           let row = gtk::ListBoxRow::new();
-          row.set_margin_top(10);
+          row.set_margin_top(15);
               let hbox = Box::new(gtk::Orientation::Horizontal, 30);
                 let label = gtk::Label::new(Some(subscription_topic.as_str()));
                 let unsubscribe_topic_x_button = Button::with_label("Unsubscribe"); // this button is the unsubscribe for this topic
-              
+                
               //set_id(subscription_topic.clone());
           row.add(&hbox);
           hbox.pack_start(&label, false, true, 60);
@@ -267,9 +278,29 @@ fn build_ui(application: &gtk::Application) {
 
        });
     }
+
+
+    // Disconnect button clicked event
+    {
+        let client = client.clone();
+        let builder = builder.clone();
+        disconnect_button.connect_clicked(move |_| {
+            let builder = builder.lock().unwrap();
+            let mut client = client.lock().unwrap();
+            let window_connection: ApplicationWindow = builder.object("window_connection").expect("Couldn't get main_window");
+            client.disconnect();
+            window_connection.hide();
+            let connect_text: gtk::Label = builder.object("connect_text").expect("Couldn't get connect_text");
+            connect_text.set_text("");
+            if ! client.is_connected() {
+                connect_text.set_text("Disconnected from server");
+            }
+        });
+    }
+
 }
 
-// Messages enum for messages widget on connected screen 
+// Messages enum for receiver thread for the connected screen messages section
 enum Message {
     UpdateBuffer(String),
 }
@@ -278,9 +309,10 @@ enum Message {
 fn main() {
     // gtk UI setup an run
     let application =
-        gtk::Application::new(Some("com.github.gtk-rs.examples.builder_basics"), Default::default());
+        gtk::Application::new(Some("mqtt.rustmonnaz.client"), Default::default());
 
     application.connect_activate(build_ui);
     
     application.run();
+    
 }
