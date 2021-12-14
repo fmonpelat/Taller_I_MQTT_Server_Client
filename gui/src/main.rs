@@ -45,6 +45,8 @@ fn build_ui(application: &gtk::Application) {
     connect_text.hide();
 
     window.set_application(Some(application));
+    window.set_title("MQTT Client");
+    window.set_default_size(900, 600);
     window.show();
 
     // Main objects used for interaction with the client
@@ -67,6 +69,7 @@ fn build_ui(application: &gtk::Application) {
     let client = Arc::new(Mutex::new(client));
     let builder = Arc::new(Mutex::new(builder));
     let window = Arc::new(Mutex::new(window));
+    let application = Arc::new(Mutex::new(application.clone()));
 
     // Connect Button clicked event
     {
@@ -74,12 +77,12 @@ fn build_ui(application: &gtk::Application) {
         let builder = builder.clone();
         let sender = sender.clone();
         let window = window.clone();
+        let application = application.clone();
         // got to another window on connect_button click
         connect_button.connect_clicked(move |_| {
             let window = window.lock().unwrap();
             let mut client = client.lock().unwrap();
-            let client_new = Client::new();  // begin with new client
-            *client = client_new;
+            let application = application.lock().unwrap();
             let builder = builder.lock().unwrap();
             // get host and port from text entry
             let host_entry: gtk::Entry = builder.object("server_host_entry").expect("Couldn't get host_entry");
@@ -166,9 +169,8 @@ fn build_ui(application: &gtk::Application) {
                 connect_text.set_text("Connected to server");
                 window.show();
                 let window_connection: ApplicationWindow = builder.object("window_connection").expect("Couldn't get main_window");
-                
+
                 let sender=sender.clone();
-                println!("CREATING THREAD");
                 thread::Builder::new().name("thread_receiver_messages".to_string()).spawn(move || {
                     loop {
                         thread::sleep(Duration::from_millis(10));
@@ -186,6 +188,7 @@ fn build_ui(application: &gtk::Application) {
                         // Sending fails if the receiver is closed
                     }
                 }).expect("Couldn't create thread_receiver_messages");
+                window_connection.set_application(Some(&*application));
                 window_connection.show();
             }
         });
@@ -218,10 +221,10 @@ fn build_ui(application: &gtk::Application) {
             let topic_entry: gtk::Entry = builder.object("topic_entry").expect("Couldn't get topic_entry");
             let retain_check: gtk::CheckButton = builder.object("retain_check").expect("Couldn't get retain_check");
             let message_publish: gtk::Entry = builder.object("message_publish").expect("Couldn't get message_publish");
-            let qos_values: gtk::ComboBoxText = builder.object("qos_values").expect("Couldn't get qos_values");
+            // let qos_values: gtk::ComboBoxText = builder.object("qos_values").expect("Couldn't get qos_values");
 
-            let qos = qos_values.active_id().unwrap().to_string().as_bytes()[0];
-            println!("Active QoS: {}", qos);
+            // let qos = qos_values.active_id().unwrap().to_string().as_bytes()[0];
+            // println!("Active QoS: {}", qos);
             let qos = 0;
             let topic = topic_entry.text().to_string();
             let dup = 0;
@@ -307,7 +310,9 @@ enum Message {
 
 
 fn main() {
-    // gtk UI setup an run
+    gtk::init().unwrap_or_else(|_| panic!("Failed to initialize GTK."));
+
+
     let application =
         gtk::Application::new(Some("mqtt.rustmonnaz.client"), Default::default());
 
