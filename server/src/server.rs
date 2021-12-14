@@ -3,7 +3,7 @@ use crate::logger::{Logger, Logging};
 use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
 use mqtt_packet::mqtt_packet_service::header_packet::{control_type, PacketHeader};
 use mqtt_packet::mqtt_packet_service::payload_packet::{
-    Payload, PublishPayload, SuscribePayload, UnsubscribePayload, suback_return_codes,
+    Payload, PublishPayload, SubscribePayload, UnsubscribePayload, suback_return_codes,
 };
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{
     connect_ack_flags, connect_return, VariableHeader, VariableHeaderPacketIdentifier,
@@ -445,7 +445,7 @@ impl Server {
                 logger.debug(format!("Peer mqtt suscribe: {:?}", peer_addr));
 
                 let unvalue =
-                    Packet::<VariableHeaderPacketIdentifier, SuscribePayload>::unvalue(buff);
+                    Packet::<VariableHeaderPacketIdentifier, SubscribePayload>::unvalue(buff);
                 let packet_identifier = unvalue.variable_header.packet_identifier;
                 let topics = unvalue.payload.topic_filter;
                 let qos_vec = unvalue.payload.qos;

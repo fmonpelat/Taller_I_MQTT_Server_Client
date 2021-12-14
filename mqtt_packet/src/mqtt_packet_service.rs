@@ -8,8 +8,8 @@ use variable_header_packet::{
 };
 pub mod payload_packet;
 use payload_packet::{
-    PacketPayload, PacketPayloadSuscribe, PacketPublishPayload, PacketSubackPayload, Payload,
-    PublishPayload, SuscribePayload, UnsubscribePayload, PacketUnsubscribePayload
+    PacketPayload, PacketPayloadSubscribe, PacketPublishPayload, PacketSubackPayload, Payload,
+    PublishPayload, SubscribePayload, UnsubscribePayload, PacketUnsubscribePayload
 };
 
 use self::payload_packet::SubackPayload;
@@ -345,20 +345,20 @@ impl Packet<VariableHeaderPublish, PublishPayload> {
     }
 }
 
-impl Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
-    /// Creates a new Packet<VariableHeaderPacketIdentifier, SuscribePayload>
+impl Packet<VariableHeaderPacketIdentifier, SubscribePayload> {
+    /// Creates a new Packet<VariableHeaderPacketIdentifier, SubscribePayload>
     #[allow(dead_code)]
-    pub fn new() -> Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
+    pub fn new() -> Packet<VariableHeaderPacketIdentifier, SubscribePayload> {
         Packet {
             header: Header::default(),
             has_variable_header: true,
             variable_header: VariableHeaderPacketIdentifier::default(),
             has_payload: true,
-            payload: SuscribePayload::default(),
+            payload: SubscribePayload::default(),
         }
     }
 
-    /// Serializes a Packet<VariableHeaderPacketIdentifier, SuscribePayload>
+    /// Serializes a Packet<VariableHeaderPacketIdentifier, SubscribePayload>
     #[allow(dead_code)]
     pub fn value(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::with_capacity(3072); // max 3KB packet
@@ -392,9 +392,9 @@ impl Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
         res
     }
 
-    /// Deserializes a Packet<VariableHeaderPacketIdentifier, SuscribePayload>
+    /// Deserializes a Packet<VariableHeaderPacketIdentifier, SubscribePayload>
     #[allow(dead_code)]
-    pub fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
+    pub fn unvalue(x: Vec<u8>) -> Packet<VariableHeaderPacketIdentifier, SubscribePayload> {
         let mut absolute_index: usize = 0;
         let mut has_payload = false;
         let mut has_variable_header = false;
@@ -416,11 +416,11 @@ impl Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
         }
         absolute_index += readed;
 
-        let payload = SuscribePayload::unvalue(x[absolute_index..(packet_length-1)].to_vec(), &mut readed);
+        let payload = SubscribePayload::unvalue(x[absolute_index..(packet_length-1)].to_vec(), &mut readed);
         if readed > 0 {
             has_payload = true;
         }
-        Packet::<VariableHeaderPacketIdentifier, SuscribePayload> {
+        Packet::<VariableHeaderPacketIdentifier, SubscribePayload> {
             header,
             has_variable_header,
             variable_header,
@@ -638,12 +638,12 @@ pub trait ClientPacket {
         topic_name: String,
         message: String,
     ) -> Packet<VariableHeaderPublish, PublishPayload>;
-    fn suscribe(
+    fn subscribe(
         &self,
         packet_identifier: u16,
         topic_names: Vec<String>,
         qos: Vec<u8>,
-    ) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload>;
+    ) -> Packet<VariableHeaderPacketIdentifier, SubscribePayload>;
     fn unsubscribe(
         &self,
         packet_identifier: u16,
@@ -785,25 +785,25 @@ impl<T, P> ClientPacket for Packet<T, P> {
     }
 
     /// Creates a Subscribe packet
-    fn suscribe(
+    fn subscribe(
         &self,
         packet_identifier: u16,
         topic_names: Vec<String>,
         qos: Vec<u8>,
-    ) -> Packet<VariableHeaderPacketIdentifier, SuscribePayload> {
+    ) -> Packet<VariableHeaderPacketIdentifier, SubscribePayload> {
         let mut header = Header {
             control_type: control_type::SUBSCRIBE,
             control_flags: control_flags::QOS0,
             remaining_length_0: vec![0],
         };
         let variable_header = VariableHeaderPacketIdentifier { packet_identifier };
-        let payload = SuscribePayload {
+        let payload = SubscribePayload {
             topic_filter: topic_names,
             qos,
         };
         header.set_remaining_length((variable_header.value().len() + payload.value().len()) as u32);
         // building the struct packet
-        Packet::<VariableHeaderPacketIdentifier, SuscribePayload> {
+        Packet::<VariableHeaderPacketIdentifier, SubscribePayload> {
             header,
             has_variable_header: true,
             variable_header,
@@ -1018,9 +1018,9 @@ mod tests {
         }
 
         #[test]
-        fn check_suscribe_packet() {
+        fn check_subscribe_packet() {
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.suscribe(
+            let packet = packet.subscribe(
                 10,
                 vec![String::from("topic1"), String::from("topic2")],
                 vec![0, 1],
@@ -1041,7 +1041,7 @@ mod tests {
             assert_eq!(value[0], control_type::SUBSCRIBE + control_flags::QOS0);
             assert_eq!(value[1], remaining_len);
 
-            let unvalue = Packet::<VariableHeaderPacketIdentifier, SuscribePayload>::unvalue(value);
+            let unvalue = Packet::<VariableHeaderPacketIdentifier, SubscribePayload>::unvalue(value);
             // println!("{:?}", unvalue);
             assert_eq!(unvalue.header.control_type, control_type::SUBSCRIBE);
             assert_eq!(unvalue.header.control_flags, control_flags::QOS0);
