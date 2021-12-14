@@ -30,6 +30,7 @@ pub struct Client {
     packet_identifier: u16,
     client_identifier: String,
     client_connection: sync::Arc<AtomicBool>,
+    last_packet_sent: Vec<u8>,
     username: String,
     password: String,
     connect_retries: usize,
@@ -65,6 +66,7 @@ impl Client {
             packet_identifier,
             client_identifier,
             client_connection: sync::Arc::new(AtomicBool::new(false)),
+            last_packet_sent: Vec::new(),
             username: String::from(""),
             password: String::from(""),
             connect_retries,
@@ -111,14 +113,12 @@ impl Client {
         self.packet_identifier
     }
 
-    pub fn disconnect(&self) {
+    pub fn disconnect(&mut self) {
         let packet = Packet::<VariableHeader, Payload>::new();
         let packet = packet.disconnect();
-        self.tx
-            .lock()
-            .unwrap()
-            .send(packet.value())
-            .expect("Cannot send packet");
+        let pck_value = packet.value();
+        self.last_packet_sent = pck_value.clone();
+        self.send(pck_value);
         self.client_connection.store(false, Ordering::SeqCst);
     }
 
@@ -226,7 +226,9 @@ impl Client {
                         self.password.clone(),
                     );
                 }
-                self.send(packet.value());
+                let pck_value = packet.value();
+                self.last_packet_sent = pck_value.clone();
+                self.send(pck_value);
 
                 let stream_ = Arc::new(Mutex::new(stream));
 
@@ -294,7 +296,6 @@ impl Client {
                             match buff[0] & 0xF0 {
                                 control_type::CONNACK => {
                                     client_connection.store(true, Ordering::SeqCst);
-                                    // println!("Connack received! setting keepalive");
                                     Client::print_all(
                                         "Connack received! setting keepalive".to_string(),
                                         tx_out.clone(),
@@ -306,7 +307,6 @@ impl Client {
                                     );
                                 }
                                 control_type::PUBACK => {
-                                    // println!("Puback received!");
                                     Client::print_all(
                                         "Puback received!".to_string(),
                                         tx_out.clone(),
@@ -328,13 +328,6 @@ impl Client {
                                         ),
                                         tx_out.clone(),
                                     );
-                                    // println!(
-                                    //     "<-- publish topic: {} value: {}",
-                                    //     String::from_utf8_lossy(
-                                    //         &unvalue.variable_header.topic_name
-                                    //     ),
-                                    //     unvalue.payload.message
-                                    // );
                                 }
                                 control_type::PINGRESP => {
                                     let (lock, cvar) = &*keepalive_pair;
@@ -349,7 +342,6 @@ impl Client {
                                         "<-- Succesfully subscribed to topic".to_string(),
                                         tx_out.clone(),
                                     );
-                                    // println!("<-- Succesfully subscribed to topic");
                                 }
                                 control_type::UNSUBACK => {
                                     println!("Unsuback received!");
@@ -357,10 +349,8 @@ impl Client {
                                         "<-- Succesfully unsubscribed from topic".to_string(),
                                         tx_out.clone(),
                                     );
-                                    // println!("<-- Succesfully unsubscribed from topic");
                                 }
                                 _ => {
-                                    // println!("Unexpected reply: {:?}\n", buff);
                                     Client::print_all(
                                         format!("Unexpected reply: {:?}\n", buff),
                                         tx_out.clone(),
@@ -371,11 +361,6 @@ impl Client {
                     }
                     Err(_error) => {
                         continue;
-                        // println!("Failed to receive data, closing connection with server: {} error: {:?}",peer, error);
-                        // // if we cant unwrap the mutex at this stage better panic
-                        // stream_lock.shutdown(Shutdown::Both).unwrap();
-                        // // drop(stream_lock);
-                        // break
                     }
                 }
                 drop(stream_lock);
@@ -388,19 +373,21 @@ impl Client {
     }
 
     #[allow(dead_code)]
-    pub fn unsubscribe(&self, topic: &str) {
+    pub fn unsubscribe(&mut self, topic: &str) {
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
         let packet_identifier = self.get_packet_identifier();
         let packet = packet.unsubscribe(
             packet_identifier,
             vec![topic.to_string()],
         );
+        let pck_value = packet.value();
+        self.last_packet_sent = pck_value.clone();
         Client::print_all(format!("--> unsubscribe topic: {} ", topic), self.tx_out.clone());
-        self.send(packet.value());
+        self.send(pck_value);
     }
 
     #[allow(dead_code)]
-    pub fn subscribe (&self, topic: &str) {
+    pub fn subscribe (&mut self, topic: &str) {
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
         let packet_identifier = self.get_packet_identifier();
         let packet = packet.subscribe(
@@ -408,12 +395,14 @@ impl Client {
             vec![String::from(topic)],
             vec![0],
         );
+        let pck_value = packet.value();
+        self.last_packet_sent = pck_value.clone();
         Client::print_all(format!("--> subscribe topic: {} ", topic), self.tx_out.clone());
-        self.send(packet.value());
+        self.send(pck_value);
     }
 
     #[allow(dead_code)]
-    pub fn publish(&self, qos: u8, dup: u8, retain: u8, topic_name: &str, message: &str) {
+    pub fn publish(&mut self, qos: u8, dup: u8, retain: u8, topic_name: &str, message: &str) {
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
         let packet_identifier = self.get_packet_identifier();
         let packet = packet.publish(
@@ -424,8 +413,10 @@ impl Client {
             topic_name.to_string(),
             message.to_string(),
         );
+        let pck_value = packet.value();
+        self.last_packet_sent = pck_value.clone();
         Client::print_all(format!("--> publish topic: {} value: {}", topic_name, message), self.tx_out.clone());
-        self.send(packet.value());
+        self.send(pck_value);
     }
 }
 
