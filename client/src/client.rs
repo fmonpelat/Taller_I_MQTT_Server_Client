@@ -380,6 +380,7 @@ impl Client {
         self.client_identifier.clone()
     }
 
+    #[allow(dead_code)]
     pub fn unsubscribe(&self, topic: &str) {
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
         let packet_identifier = self.get_packet_identifier();
@@ -391,6 +392,7 @@ impl Client {
         self.send(packet.value());
     }
 
+    #[allow(dead_code)]
     pub fn subscribe (&self, topic: &str) {
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
         let packet_identifier = self.get_packet_identifier();
@@ -403,6 +405,7 @@ impl Client {
         self.send(packet.value());
     }
 
+    #[allow(dead_code)]
     pub fn publish(&self, qos: u8, dup: u8, retain: u8, topic_name: &str, message: &str) {
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
         let packet_identifier = self.get_packet_identifier();
