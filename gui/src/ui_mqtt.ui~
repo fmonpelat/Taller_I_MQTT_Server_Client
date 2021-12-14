@@ -704,9 +704,17 @@ To start using the application please connect to server first</property>
                                 <property name="active">0</property>
                                 <property name="add-tearoffs">True</property>
                                 <property name="tearoff-title" translatable="yes">0</property>
+                                <property name="has-entry">True</property>
                                 <property name="entry-text-column">1</property>
+                                <property name="id-column">1</property>
+                                <property name="active-id">0</property>
                                 <signal name="changed" handler="on_qos_value_changed" swapped="no"/>
                                 <signal name="format-entry-text" handler="1" swapped="no"/>
+                                <child internal-child="entry">
+                                  <object class="GtkEntry">
+                                    <property name="can-focus">False</property>
+                                  </object>
+                                </child>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>

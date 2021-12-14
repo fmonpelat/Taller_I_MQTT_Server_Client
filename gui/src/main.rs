@@ -1,13 +1,13 @@
 use gtk::prelude::*;
-use gtk::{ApplicationWindow, Builder, Button};
-use gtk::prelude::EntryExt;
-use gtk::prelude::ToggleButtonExt;
+use gtk::{ApplicationWindow, Builder, Button, TextView, Grid, CheckButton, Box, Entry};
+// use gtk::prelude::EntryExt;
+// use gtk::prelude::ToggleButtonExt;
 use client::client::Client;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::thread::{sleep, self};
 use std::time::Duration;
-use glib;
+use gtk::glib as glib;
 
 const MESSAGE_CONNECTION_START: &str = "Connecting to server...";
 const MESSAGE_CONNECTION_FAIL: &str = "Connection failed, please check your settings";
@@ -21,8 +21,8 @@ fn build_ui(application: &gtk::Application) {
     let window: ApplicationWindow = builder.object("main_window").expect("Couldn't get main_window");
     
     // if check_connect_secured is set, show credential fields
-    let credential_grid: gtk::Grid = builder.object("credential_grid").expect("Couldn't get credential_grid");
-    let credential_checkbox: gtk::CheckButton = builder.object("check_connect_secured").expect("Couldn't get credentials_checkbox");
+    let credential_grid: Grid = builder.object("credential_grid").expect("Couldn't get credential_grid");
+    let credential_checkbox: CheckButton = builder.object("check_connect_secured").expect("Couldn't get credentials_checkbox");
     credential_grid.hide();
     credential_checkbox.connect_toggled(move |credential_checkbox| {
         if credential_checkbox.is_active() {
@@ -32,31 +32,43 @@ fn build_ui(application: &gtk::Application) {
         }
     });
 
+    // TODO: check why this doesn't work (thread 'main' panicked at 'Couldn't get qos_option_values', src/main.rs:36:72)
+    // Append the option values for QOS publish on GtkComboBox id qos_values
+    // let qos_values: ComboBoxText = builder.object("qos_option_values").expect("Couldn't get qos_option_values");
+    // qos_values.set_active(Some(0));
+    // qos_values.append_text("0");
+    // qos_values.append_text("1");
+
     let connect_text: gtk::Label = builder.object("connect_text").expect("Couldn't get connect_text");
     connect_text.hide();
 
     window.set_application(Some(application));
     window.show();
 
-    let connect_button: gtk::Button = builder.object("connect_button").expect("Couldn't get connect_button");
-    let publish_button: gtk::Button = builder.object("publish_button").expect("Couldn't get publish_button");
-    let text_view: gtk::TextView = builder.object("message_view").expect("Couldn't get message_view");
-    let subscription_button: gtk::Button = builder.object("subscription_button").expect("Couldn't get subscription_button");
+    let connect_button: Button = builder.object("connect_button").expect("Couldn't get connect_button");
+    let publish_button: Button = builder.object("publish_button").expect("Couldn't get publish_button");
+    let text_view: TextView = builder.object("message_view").expect("Couldn't get message_view");
+    let subscription_button: Button = builder.object("subscription_button").expect("Couldn't get subscription_button");
+    
+    
     // send client message from rx through channel tx
     let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
     let sender = Arc::new(Mutex::new(sender));
-    let client = Arc::new(Mutex::new(Client::new()));
+    let mut client = Client::new();
+    client.set_keepalive_interval(120);
+    let client = Arc::new(Mutex::new(client));
     let builder = Arc::new(Mutex::new(builder));
-    
+    let window = Arc::new(Mutex::new(window));
     // Connect Button clicked event
     {
         let client = client.clone();
         let builder = builder.clone();
         let sender = sender.clone();
+        let window = window.clone();
         // got to another window on connect_button click
         connect_button.connect_clicked(move |_| {
-
+            let window = window.lock().unwrap();
             let mut client = client.lock().unwrap();
             let builder = builder.lock().unwrap();
             // get host and port from text entry
@@ -169,7 +181,7 @@ fn build_ui(application: &gtk::Application) {
     }
 
     // Window Buffer updated
-    let buffer = text_view.buffer().expect("cannot read buffer");
+    let buffer = text_view.buffer().unwrap();
     let mut iter = buffer.end_iter();
 
     receiver.attach(None, move |msg| {
@@ -195,9 +207,12 @@ fn build_ui(application: &gtk::Application) {
             let topic_entry: gtk::Entry = builder.object("topic_entry").expect("Couldn't get topic_entry");
             let retain_check: gtk::CheckButton = builder.object("retain_check").expect("Couldn't get retain_check");
             let message_publish: gtk::Entry = builder.object("message_publish").expect("Couldn't get message_publish");
+            let qos_values: gtk::ComboBoxText = builder.object("qos_values").expect("Couldn't get qos_values");
 
-            let topic = topic_entry.text().to_string();
+            let qos = qos_values.active_id().unwrap().to_string().as_bytes()[0];
+            println!("Active QoS: {}", qos);
             let qos = 0;
+            let topic = topic_entry.text().to_string();
             let dup = 0;
             let retain = if retain_check.is_active() { 1 } else { 0 };
             let message = message_publish.text().to_string();
@@ -205,23 +220,52 @@ fn build_ui(application: &gtk::Application) {
         });
     }
 
-    //// Subscribe button clicked event
-    //{
-    //    let client = client.clone();
-    //    let builder = builder.clone();
-    //    subscription_button.connect_clicked(move |_| {
-    //        let builder = builder.lock().unwrap();
-    //        let client = client.lock().unwrap();
-    //        
-    //        // make new subscribe grid
-    //        let subscribe_grid: gtk::Grid = builder.object("subscribe_grid").expect("Couldn't get subscribe_grid");
-    //        let subscribe_button = Button::with_label("Subscribe");
-    //        let input = gtk::Entry::new();
-//
-    //       
-    //    });
-//
-    //}
+    // Subscribe button clicked event
+    {
+       let client_subscription_events = client.clone();
+       let builder = builder.clone();
+       let window = window.clone();
+
+       subscription_button.connect_clicked(move |_| {
+          let builder = builder.lock().unwrap();
+          let client = client_subscription_events.lock().unwrap();
+          let window = window.lock().unwrap();
+
+          // make new subscribe list box and add it to the window
+          let subscribe_list_box: Box = builder.object("subscribe_list_box").expect("Couldn't get subscribe_list_box");
+          let subscription_entry: Entry = builder.object("subscription_entry").expect("Couldn't get subscription_entry");
+
+          let subscription_topic = subscription_entry.text().to_string();
+
+          // send client subscribe request
+          client.subscribe(&subscription_topic);
+
+          // create new list box row with the subscribe topic
+          let row = gtk::ListBoxRow::new();
+              let hbox = Box::new(gtk::Orientation::Horizontal, 30);
+              let label = gtk::Label::new(Some(subscription_topic.as_str()));
+              let unsubscribe_topic_x_button = Button::with_label("Unsubscribe"); // this button is the unsubscribe for this topic
+              
+              //set_id(subscription_topic.clone());
+          row.add(&hbox);
+          hbox.pack_start(&label, false, true, 60);
+          hbox.pack_start(&unsubscribe_topic_x_button, false, false, 20);
+          subscribe_list_box.add(&row); 
+          subscribe_list_box.show_all();
+          window.show();
+
+          let client_unsubscribe_event = client_subscription_events.clone();
+          // button unsubscribe clicked event
+          unsubscribe_topic_x_button.connect_clicked(move |_| {
+            let client = client_unsubscribe_event.lock().unwrap();
+            client.unsubscribe(&subscription_topic);
+            subscribe_list_box.remove(&row);
+            subscribe_list_box.show_all();
+          });
+
+
+       });
+    }
 }
 
 // Messages enum for messages widget on connected screen 
