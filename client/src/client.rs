@@ -73,13 +73,14 @@ impl Client {
     fn print_all(text: String, tx_out: sync::Arc<Mutex<Sender<String>>>) {
         println!("{}", text);
         match tx_out.lock() {
-            Ok(tx_out) => {
-                tx_out.send(text).unwrap();
+            Ok(tx_out_) => {
+                tx_out_.send(text).unwrap();
             }
             Err(e) => {
                 println!("{}", e);
             }
         }
+        drop(tx_out);
     }
 
     pub fn get_connect_retries(&self) -> usize {
@@ -377,6 +378,44 @@ impl Client {
 
     pub fn get_id_client(&self) -> String {
         self.client_identifier.clone()
+    }
+
+    pub fn unsubscribe(&self, topic: &str) {
+        let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
+        let packet_identifier = self.get_packet_identifier();
+        let packet = packet.unsubscribe(
+            packet_identifier,
+            vec![topic.to_string()],
+        );
+        Client::print_all(format!("--> unsubscribe topic: {} ", topic), self.tx_out.clone());
+        self.send(packet.value());
+    }
+
+    pub fn subscribe (&self, topic: &str) {
+        let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
+        let packet_identifier = self.get_packet_identifier();
+        let packet = packet.subscribe(
+            packet_identifier,
+            vec![String::from(topic)],
+            vec![0],
+        );
+        Client::print_all(format!("--> subscribe topic: {} ", topic), self.tx_out.clone());
+        self.send(packet.value());
+    }
+
+    pub fn publish(&self, qos: u8, dup: u8, retain: u8, topic_name: &str, message: &str) {
+        let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
+        let packet_identifier = self.get_packet_identifier();
+        let packet = packet.publish(
+            dup,
+            qos,
+            retain,
+            packet_identifier,
+            topic_name.to_string(),
+            message.to_string(),
+        );
+        Client::print_all(format!("--> publish topic: {} value: {}", topic_name, message), self.tx_out.clone());
+        self.send(packet.value());
     }
 }
 

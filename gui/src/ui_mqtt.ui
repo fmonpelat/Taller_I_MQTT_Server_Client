@@ -9,8 +9,8 @@
   <object class="GtkApplicationWindow" id="main_window">
     <property name="can-focus">False</property>
     <property name="resizable">False</property>
-    <property name="default-width">648</property>
-    <property name="default-height">418</property>
+    <property name="default-width">700</property>
+    <property name="default-height">500</property>
     <child>
       <object class="GtkBox">
         <property name="visible">True</property>
@@ -411,8 +411,11 @@ To start using the application please connect to server first</property>
       </object>
     </child>
   </object>
+  <object class="GtkTextBuffer" id="textbuffer1"/>
   <object class="GtkApplicationWindow" id="window_connection">
     <property name="can-focus">False</property>
+    <property name="default-width">1200</property>
+    <property name="default-height">950</property>
     <child>
       <object class="GtkPaned">
         <property name="visible">True</property>
@@ -428,6 +431,7 @@ To start using the application please connect to server first</property>
               <object class="GtkExpander" id="connection_section">
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
+                <property name="margin-bottom">27</property>
                 <child>
                   <object class="GtkBox" id="connection_box">
                     <property name="visible">True</property>
@@ -577,7 +581,7 @@ To start using the application please connect to server first</property>
                   <object class="GtkExpander" id="publish_section">
                     <property name="visible">True</property>
                     <property name="can-focus">True</property>
-                    <property name="margin-bottom">35</property>
+                    <property name="margin-bottom">28</property>
                     <property name="expanded">True</property>
                     <property name="spacing">6</property>
                     <child>
@@ -766,7 +770,7 @@ To start using the application please connect to server first</property>
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkEntry" id="messages_server">
+                          <object class="GtkEntry" id="message_publish">
                             <property name="visible">True</property>
                             <property name="can-focus">True</property>
                             <property name="margin-right">106</property>
@@ -885,16 +889,49 @@ To start using the application please connect to server first</property>
                       <placeholder/>
                     </child>
                     <child>
-                      <object class="GtkButton">
-                        <property name="label" translatable="yes">Add New Topic Subscription</property>
+                      <placeholder/>
+                    </child>
+                    <child>
+                      <object class="GtkBox">
                         <property name="visible">True</property>
-                        <property name="can-focus">True</property>
-                        <property name="receives-default">True</property>
+                        <property name="can-focus">False</property>
+                        <property name="margin-start">13</property>
+                        <child>
+                          <object class="GtkEntry" id="subscription_entry">
+                            <property name="visible">True</property>
+                            <property name="can-focus">True</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <placeholder/>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="subscription_button">
+                            <property name="label" translatable="yes">Subscribe</property>
+                            <property name="visible">True</property>
+                            <property name="can-focus">True</property>
+                            <property name="receives-default">True</property>
+                            <property name="margin-start">33</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">2</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <placeholder/>
+                        </child>
                       </object>
                       <packing>
                         <property name="expand">False</property>
                         <property name="fill">True</property>
-                        <property name="position">1</property>
+                        <property name="position">2</property>
                       </packing>
                     </child>
                     <child>
@@ -909,7 +946,43 @@ To start using the application please connect to server first</property>
                           <placeholder/>
                         </child>
                         <child>
-                          <placeholder/>
+                          <!-- n-columns=3 n-rows=3 -->
+                          <object class="GtkGrid" id="subscribe_grid">
+                            <property name="visible">True</property>
+                            <property name="can-focus">False</property>
+                            <child>
+                              <placeholder/>
+                            </child>
+                            <child>
+                              <placeholder/>
+                            </child>
+                            <child>
+                              <placeholder/>
+                            </child>
+                            <child>
+                              <placeholder/>
+                            </child>
+                            <child>
+                              <placeholder/>
+                            </child>
+                            <child>
+                              <placeholder/>
+                            </child>
+                            <child>
+                              <placeholder/>
+                            </child>
+                            <child>
+                              <placeholder/>
+                            </child>
+                            <child>
+                              <placeholder/>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">1</property>
+                          </packing>
                         </child>
                         <child>
                           <placeholder/>
@@ -918,11 +991,8 @@ To start using the application please connect to server first</property>
                       <packing>
                         <property name="expand">False</property>
                         <property name="fill">True</property>
-                        <property name="position">3</property>
+                        <property name="position">4</property>
                       </packing>
-                    </child>
-                    <child>
-                      <placeholder/>
                     </child>
                   </object>
                 </child>
@@ -965,18 +1035,30 @@ To start using the application please connect to server first</property>
           <object class="GtkBox">
             <property name="visible">True</property>
             <property name="can-focus">False</property>
+            <property name="margin-left">4</property>
             <property name="orientation">vertical</property>
             <child>
               <object class="GtkExpander" id="messages_section">
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
+                <property name="margin-right">31</property>
+                <property name="margin-start">46</property>
+                <property name="resize-mode">queue</property>
                 <property name="expanded">True</property>
                 <property name="label-fill">True</property>
                 <property name="resize-toplevel">True</property>
                 <child>
-                  <object class="GtkTextView">
+                  <object class="GtkTextView" id="message_view">
                     <property name="visible">True</property>
                     <property name="can-focus">True</property>
+                    <property name="no-show-all">True</property>
+                    <property name="margin-right">1</property>
+                    <property name="hexpand">True</property>
+                    <property name="vexpand">True</property>
+                    <property name="resize-mode">queue</property>
+                    <property name="editable">False</property>
+                    <property name="input-purpose">terminal</property>
+                    <property name="monospace">True</property>
                   </object>
                 </child>
                 <child type="label">

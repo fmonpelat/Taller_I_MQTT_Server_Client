@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 gtk = "0.14.0"
 client= {path= "../client"}
+glib = "0.14.8"
