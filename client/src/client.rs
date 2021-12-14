@@ -25,6 +25,7 @@ pub struct Client {
     server_port: String,
     tx: Arc<Mutex<Sender<Vec<u8>>>>,
     rx: Arc<Mutex<Receiver<Vec<u8>>>>,
+    keepalive_interval: u16,
     keepalive_pair: Arc<(Mutex<bool>, Condvar)>,
     packet_identifier: u16,
     client_identifier: String,
@@ -51,6 +52,7 @@ impl Client {
         let mut rng = rand::thread_rng();
         let packet_identifier: u16 = rng.gen();
         let connect_retries: usize = 20;
+        let keepalive_interval: u16 = 60;
         let keepalive_pair = Arc::new((Mutex::new(false), Condvar::new()));
 
         Client {
@@ -58,6 +60,7 @@ impl Client {
             server_port: String::from(""),
             tx,
             rx,
+            keepalive_interval,
             keepalive_pair,
             packet_identifier,
             client_identifier,
@@ -68,6 +71,11 @@ impl Client {
             tx_out: Arc::new(Mutex::new(tx_out)),
             rx_out: Arc::new(Mutex::new(rx_out)),
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn set_keepalive_interval(&mut self, keepalive_interval: u16) {
+        self.keepalive_interval = keepalive_interval;
     }
 
     fn print_all(text: String, tx_out: sync::Arc<Mutex<Sender<String>>>) {
@@ -189,7 +197,6 @@ impl Client {
         self.server_port = port;
         self.username = username;
         self.password = password;
-        let keepalive_interval = 20;
         match TcpStream::connect(self.server_host.to_string() + ":" + &self.server_port) {
             Ok(stream) => {
                 Client::print_all(
@@ -226,7 +233,7 @@ impl Client {
                 Client::handle_read(
                     stream_.clone(),
                     self.client_connection.clone(),
-                    keepalive_interval,
+                    self.keepalive_interval as usize,
                     self.keepalive_pair.clone(),
                     self.tx_out.clone(),
                 );
