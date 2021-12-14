@@ -761,7 +761,7 @@ impl<T, P> ClientPacket for Packet<T, P> {
     ) -> Packet<VariableHeaderPublish, PublishPayload> {
         let header = Header {
             control_type: control_type::PUBLISH,
-            control_flags: dup | qos | retain,
+            control_flags: (dup << 4) as u8 | (qos<<1) as u8 | retain as u8,
             remaining_length_0: vec![0],
         };
         let variable_header = VariableHeaderPublish {
@@ -793,7 +793,7 @@ impl<T, P> ClientPacket for Packet<T, P> {
     ) -> Packet<VariableHeaderPacketIdentifier, SubscribePayload> {
         let mut header = Header {
             control_type: control_type::SUBSCRIBE,
-            control_flags: control_flags::QOS0,
+            control_flags: control_flags::RESERVED,
             remaining_length_0: vec![0],
         };
         let variable_header = VariableHeaderPacketIdentifier { packet_identifier };
@@ -1027,7 +1027,7 @@ mod tests {
             );
             let remaining_len: u8 = 20;
             assert_eq!(packet.header.control_type, control_type::SUBSCRIBE);
-            assert_eq!(packet.header.control_flags, control_flags::QOS0);
+            assert_eq!(packet.header.control_flags, control_flags::RESERVED);
             assert_eq!(packet.header.remaining_length_0, [remaining_len]);
             assert_eq!(packet.variable_header.packet_identifier, 10);
             assert_eq!(
@@ -1038,13 +1038,13 @@ mod tests {
 
             let value = packet.value();
             // println!("{:?}", value);
-            assert_eq!(value[0], control_type::SUBSCRIBE + control_flags::QOS0);
+            assert_eq!(value[0], control_type::SUBSCRIBE);
             assert_eq!(value[1], remaining_len);
 
             let unvalue = Packet::<VariableHeaderPacketIdentifier, SubscribePayload>::unvalue(value);
             // println!("{:?}", unvalue);
             assert_eq!(unvalue.header.control_type, control_type::SUBSCRIBE);
-            assert_eq!(unvalue.header.control_flags, control_flags::QOS0);
+            assert_eq!(unvalue.header.control_flags, control_flags::RESERVED);
             assert_eq!(unvalue.header.remaining_length_0, [remaining_len]);
             assert_eq!(unvalue.variable_header.packet_identifier, 10);
             assert_eq!(
@@ -1286,11 +1286,11 @@ mod tests {
 
         #[test]
         fn check_publish_packet() {
-            let dup = control_flags::DUP;
-            let qos = control_flags::QOS0;
-            let retain = control_flags::RETAIN;
+            let dup = 0;
+            let qos = 1;
+            let retain = 0;
             let header = vec![
-                (control_type::PUBLISH + ((dup | qos | retain) as u8)) as u8,
+                (control_type::PUBLISH + (((dup<<4) as u8 | (qos<<1) as u8 | retain) as u8)) as u8,
                 24,
             ]; // length of 24 for this example
             let topic_name = String::from("testTopic");
@@ -1336,8 +1336,8 @@ mod tests {
             assert!(publish_stub.eq(&value));
             let unvalue = Packet::<VariableHeaderPublish, PublishPayload>::unvalue(value);
             // println!("unvalue {:?}", unvalue);
-            assert_eq!(unvalue.header.control_type, control_type::PUBLISH);
-            assert_eq!(unvalue.header.control_flags, dup | qos | retain);
+            assert_eq!(unvalue.header.control_type , control_type::PUBLISH);
+            assert_eq!(unvalue.header.control_flags, (((dup<<4) as u8 | (qos<<1) as u8 | retain) as u8) as u8);
             assert_eq!(unvalue.header.remaining_length_0, vec![24]);
             assert_eq!(
                 unvalue.variable_header.topic_name,

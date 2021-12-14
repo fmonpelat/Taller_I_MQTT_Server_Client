@@ -19,8 +19,8 @@
   </object>
   <object class="GtkApplicationWindow" id="window_connection">
     <property name="can-focus">False</property>
-    <property name="default-width">1200</property>
-    <property name="default-height">950</property>
+    <property name="default-width">1100</property>
+    <property name="default-height">700</property>
     <child>
       <object class="GtkPaned">
         <property name="visible">True</property>
@@ -295,24 +295,25 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkComboBox" id="qos_entry">
+                              <object class="GtkComboBox" id="qos_option_values">
                                 <property name="visible">True</property>
-                                <property name="can-focus">False</property>
+                                <property name="app-paintable">True</property>
+                                <property name="can-focus">True</property>
+                                <property name="has-focus">True</property>
+                                <property name="receives-default">True</property>
+                                <property name="no-show-all">True</property>
+                                <property name="has-tooltip">True</property>
                                 <property name="halign">start</property>
-                                <property name="margin-left">34</property>
-                                <property name="margin-right">40</property>
-                                <property name="margin-start">43</property>
-                                <property name="model">liststore1</property>
-                                <property name="has-entry">True</property>
-                                <property name="entry-text-column">0</property>
-                                <child internal-child="entry">
-                                  <object class="GtkEntry">
-                                    <property name="visible">True</property>
-                                    <property name="can-focus">False</property>
-                                    <property name="halign">start</property>
-                                    <property name="valign">start</property>
-                                  </object>
-                                </child>
+                                <property name="margin-start">23</property>
+                                <property name="margin-end">12</property>
+                                <property name="wrap-width">9</property>
+                                <property name="row-span-column">1</property>
+                                <property name="active">0</property>
+                                <property name="add-tearoffs">True</property>
+                                <property name="tearoff-title" translatable="yes">0</property>
+                                <property name="entry-text-column">1</property>
+                                <signal name="changed" handler="on_qos_value_changed" swapped="no"/>
+                                <signal name="format-entry-text" handler="1" swapped="no"/>
                               </object>
                               <packing>
                                 <property name="left-attach">1</property>
@@ -546,12 +547,20 @@
                       <placeholder/>
                     </child>
                     <child>
-                      <object class="GtkBox">
+                      <object class="GtkBox" id="subscribe_list_box">
                         <property name="visible">True</property>
                         <property name="can-focus">False</property>
                         <property name="orientation">vertical</property>
                         <child>
-                          <placeholder/>
+                          <object class="GtkListBox">
+                            <property name="visible">True</property>
+                            <property name="can-focus">False</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
                         </child>
                         <child>
                           <!-- n-columns=3 n-rows=3 -->
@@ -1037,10 +1046,35 @@ To start using the application please connect to server first</property>
                 <property name="label" translatable="yes">Connect</property>
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
-                <property name="receives-default">True</property>
-                <property name="margin-right">20</property>
-                <property name="margin-top">30</property>
-                <property name="margin-bottom">34</property>
+                <property name="margin-right">31</property>
+                <property name="margin-start">46</property>
+                <property name="resize-mode">queue</property>
+                <property name="expanded">True</property>
+                <property name="label-fill">True</property>
+                <property name="resize-toplevel">True</property>
+                <child>
+                  <object class="GtkTextView" id="message_view">
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="no-show-all">True</property>
+                    <property name="margin-right">1</property>
+                    <property name="hexpand">True</property>
+                    <property name="vexpand">True</property>
+                    <property name="resize-mode">queue</property>
+                    <property name="editable">False</property>
+                    <property name="monospace">True</property>
+                  </object>
+                </child>
+                <child type="label">
+                  <object class="GtkLabel" id="message_label">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="label" translatable="yes">Messages</property>
+                    <attributes>
+                      <attribute name="font-desc" value="Sans Bold 14"/>
+                    </attributes>
+                  </object>
+                </child>
               </object>
               <packing>
                 <property name="expand">False</property>
