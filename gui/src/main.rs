@@ -228,7 +228,7 @@ fn build_ui(application: &gtk::Application) {
 
        subscription_button.connect_clicked(move |_| {
           let builder = builder.lock().unwrap();
-          let client = client_subscription_events.lock().unwrap();
+          let mut client = client_subscription_events.lock().unwrap();
           let window = window.lock().unwrap();
 
           // make new subscribe list box and add it to the window
@@ -242,9 +242,10 @@ fn build_ui(application: &gtk::Application) {
 
           // create new list box row with the subscribe topic
           let row = gtk::ListBoxRow::new();
+          row.set_margin_top(10);
               let hbox = Box::new(gtk::Orientation::Horizontal, 30);
-              let label = gtk::Label::new(Some(subscription_topic.as_str()));
-              let unsubscribe_topic_x_button = Button::with_label("Unsubscribe"); // this button is the unsubscribe for this topic
+                let label = gtk::Label::new(Some(subscription_topic.as_str()));
+                let unsubscribe_topic_x_button = Button::with_label("Unsubscribe"); // this button is the unsubscribe for this topic
               
               //set_id(subscription_topic.clone());
           row.add(&hbox);
@@ -257,7 +258,7 @@ fn build_ui(application: &gtk::Application) {
           let client_unsubscribe_event = client_subscription_events.clone();
           // button unsubscribe clicked event
           unsubscribe_topic_x_button.connect_clicked(move |_| {
-            let client = client_unsubscribe_event.lock().unwrap();
+            let mut client = client_unsubscribe_event.lock().unwrap();
             client.unsubscribe(&subscription_topic);
             subscribe_list_box.remove(&row);
             subscribe_list_box.show_all();
