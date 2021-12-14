@@ -22,7 +22,7 @@ use std::time::Duration;
 
 type HashPersistanceConnections = HashMap<String, JoinHandle<()>>; // la clave es el ip address
 type HashServerConnections = HashMap<String, HandleClientConnections>; // la clave es el client_id de mqtt
-type HashTopics = HashMap<String, Vec<(String, Sender<Vec<u8>>)>>;
+type HashTopics = HashMap<String, (Vec<(String, Sender<Vec<u8>>)>, String)>; // tuple value (vec of (client_id, tx senders), message of retain)
 type HashCredentials = HashMap<String, String>;
 #[derive(Clone)]
 pub struct Server {
@@ -605,10 +605,17 @@ impl Server {
                                         .and_modify(|vector| {
                                             logger.debug(format!(
                                                 "Found {} subscriptors for topic: {}",
-                                                vector.len(),
+                                                vector.0.len(),
                                                 topic
                                             ));
-                                            for val in vector {
+                                            if retain == 1 {
+                                                logger.debug(format!(
+                                                    "Saving Retain message for topic: {}",
+                                                    topic
+                                                ));
+                                                vector.1 = message.to_string();
+                                            }
+                                            for val in &vector.0 {
                                                 let tx = val.1.clone();
                                                 let packet =
                                                     Packet::<VariableHeader, Payload>::new();
@@ -627,6 +634,20 @@ impl Server {
                                                     )
                                                 });
                                             }
+                                        })
+                                        .or_insert_with(|| {
+                                            logger.debug(format!(
+                                                "No subscriptors for topic: {}",
+                                                topic
+                                            ));
+                                            if retain == 1 {
+                                                logger.debug(format!(
+                                                    "Saving Retain message for topic: {}",
+                                                    topic
+                                                ));
+                                                return (vec![], message.to_string())
+                                            }
+                                            (vec![], "".to_string())
                                         });
                                 } else {
                                     logger.debug(
@@ -659,10 +680,36 @@ impl Server {
                                         .unwrap()
                                         .entry(topic.to_string())
                                         .and_modify(|vector| {
-                                            vector.push((client_id.to_string(), tx.to_owned()));
+                                            vector.0.push((client_id.to_string(), tx.to_owned()));
+
+                                            if !vector.1.is_empty() {
+                                                logger.debug(format!(
+                                                    "Sending retain message for topic: {} message: {}",
+                                                    topic,
+                                                    vector.1.clone()
+                                                ));
+                                                // send to this client the last retained message
+                                                let packet =
+                                                    Packet::<VariableHeader, Payload>::new();
+                                                let packet = packet.publish(
+                                                    0,
+                                                    1,
+                                                    1,
+                                                    0,
+                                                    topic.to_string(),
+                                                    vector.1.to_string(),
+                                                );
+                                                tx.send(packet.value()).unwrap_or_else(|_| {
+                                                    panic!(
+                                                        "Cannot proccess subscribe message {:?}",
+                                                        msg
+                                                    )
+                                                });
+                                            }
+
                                         })
                                         .or_insert_with(|| {
-                                            vec![(client_id.to_string(), tx.to_owned())]
+                                            (vec![(client_id.to_string(), tx.to_owned())], "".to_string())
                                         });
                                 } else {
                                     logger.debug("Cannot find client Identified".to_string());
@@ -682,7 +729,7 @@ impl Server {
                                         .unwrap()
                                         .entry(topic.to_string())
                                         .and_modify(|vector| {
-                                            vector.retain(|entry| entry.0 != client_id);
+                                            vector.0.retain(|entry| entry.0 != client_id);
                                         });
                                 }
                                 logger.debug(format!(
