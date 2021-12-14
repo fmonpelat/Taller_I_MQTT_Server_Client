@@ -202,7 +202,7 @@ fn build_ui(application: &gtk::Application) {
         let builder = builder.clone();
         publish_button.connect_clicked(move |_| {
             let builder = builder.lock().unwrap();
-            let client = client.lock().unwrap();
+            let mut client = client.lock().unwrap();
             
             let topic_entry: gtk::Entry = builder.object("topic_entry").expect("Couldn't get topic_entry");
             let retain_check: gtk::CheckButton = builder.object("retain_check").expect("Couldn't get retain_check");
