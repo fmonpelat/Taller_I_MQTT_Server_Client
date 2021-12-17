@@ -1,8 +1,7 @@
-use core::time;
 use std::io::{Read, Write};
 use std::iter;
 use std::net::TcpStream;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{mpsc, Arc, Condvar, Mutex};
 use std::time::Duration;
 extern crate rand;
 use mqtt_packet::mqtt_packet_service::header_packet::control_type;
@@ -36,6 +35,8 @@ pub struct Client {
     connect_retries: usize,
     tx_out: Arc<Mutex<Sender<String>>>,
     rx_out: Arc<Mutex<Receiver<String>>>,
+    tx_events_handler: Arc<Mutex<Sender<Vec<u8>>>>,
+    rx_events_handler: Arc<Mutex<Receiver<Vec<u8>>>>,
 }
 
 impl Client {
@@ -44,6 +45,7 @@ impl Client {
         let (tx_out, rx_out) = channel::<String>(); // channel to send outside messages
         let rx = Arc::new(Mutex::new(rx));
         let tx = Arc::new(Mutex::new(tx));
+        let (tx_events_handler, rx_events_handler) = channel::<Vec<u8>>(); // channel to send events to act on
         let mut rng = thread_rng();
         let client_identifier: String = iter::repeat(())
             .map(|()| rng.sample(Alphanumeric))
@@ -54,6 +56,7 @@ impl Client {
         let packet_identifier: u16 = rng.gen();
         let connect_retries: usize = 20;
         let keepalive_interval: u16 = 60;
+        #[allow(clippy::mutex_atomic)]
         let keepalive_pair = Arc::new((Mutex::new(false), Condvar::new()));
 
         Client {
@@ -72,6 +75,8 @@ impl Client {
             connect_retries,
             tx_out: Arc::new(Mutex::new(tx_out)),
             rx_out: Arc::new(Mutex::new(rx_out)),
+            tx_events_handler: Arc::new(Mutex::new(tx_events_handler)),
+            rx_events_handler: Arc::new(Mutex::new(rx_events_handler)),
         }
     }
 
@@ -122,32 +127,28 @@ impl Client {
         self.client_connection.store(false, Ordering::SeqCst);
     }
 
-    pub fn disconnect_stream(stream: Arc<Mutex<TcpStream>>) {
+    pub fn disconnect_stream(tx: Arc<Mutex<Sender<Vec<u8>>>>) {
         let packet = Packet::<VariableHeader, Payload>::new();
         let packet = packet.disconnect();
-        let mut stream = stream.lock().unwrap();
-        stream
-            .write_all(&packet.value())
-            .expect("Cannot send packet");
-        stream.shutdown(std::net::Shutdown::Both).unwrap();
+        let tx = tx.lock().unwrap();
+        tx.send(packet.value())
+            .expect("Cannot send disconnect packet");
     }
 
     pub fn keepalive(
-        stream: Arc<Mutex<TcpStream>>,
+        tx: Arc<Mutex<Sender<Vec<u8>>>>,
         keepalive_interval: usize,
         pair: Arc<(Mutex<bool>, Condvar)>,
     ) {
-        fn send_keepalive(stream: Arc<Mutex<TcpStream>>) {
+        fn send_keepalive(tx: Arc<Mutex<Sender<Vec<u8>>>>) {
             let packet = Packet::<VariableHeader, Payload>::new();
             let packet = packet.pingreq();
             let msg = packet.value();
             println!("sending keepalive");
-            stream
-                .lock()
+            tx.lock()
                 .unwrap()
-                .write_all(&msg)
+                .send(msg)
                 .expect("Could not write to stream sending pingreq");
-            drop(stream);
         }
 
         // if keepalive is set to zero disable
@@ -162,7 +163,7 @@ impl Client {
             .spawn(move || {
                 let (lock, cvar) = &*pair;
                 loop {
-                    send_keepalive(stream.clone());
+                    send_keepalive(tx.clone());
                     let received = lock.lock().unwrap();
                     let result = cvar
                         .wait_timeout(received, Duration::from_secs(keepalive_interval as u64))
@@ -177,7 +178,7 @@ impl Client {
                         // check if keepalive has timed out
                         if keepalive_timer.elapsed().as_secs() >= keepalive_interval as u64 {
                             println!("keepalive timed out");
-                            Client::disconnect_stream(stream.clone());
+                            Client::disconnect_stream(tx.clone());
                             break;
                         }
                     }
@@ -232,14 +233,17 @@ impl Client {
 
                 let stream_ = Arc::new(Mutex::new(stream));
 
-                Client::handle_read(
-                    stream_.clone(),
+                self.handle_events(
+                    self.rx_events_handler.clone(),
+                    self.tx.clone(),
                     self.client_connection.clone(),
-                    self.keepalive_interval as usize,
+                    self.keepalive_interval.into(),
                     self.keepalive_pair.clone(),
                     self.tx_out.clone(),
                 );
-                Client::handle_write(stream_, Arc::clone(&self.rx));
+
+                self.handle_io(stream_, self.rx.clone(), self.tx_events_handler.clone());
+
                 Ok(self.rx_out.clone())
             }
             Err(e) => {
@@ -249,51 +253,94 @@ impl Client {
         }
     }
 
-    pub fn handle_write(stream: Arc<Mutex<TcpStream>>, rx: Arc<Mutex<Receiver<Vec<u8>>>>) {
-        let _handle_write = thread::Builder::new()
-            .name("Thread: write to stream".to_string())
+    fn handle_io(
+        &mut self,
+        stream: Arc<Mutex<TcpStream>>,
+        rx: Arc<Mutex<Receiver<Vec<u8>>>>,
+        tx_events_handler: Arc<Mutex<Sender<Vec<u8>>>>,
+    ) {
+        let _handle_io = thread::Builder::new()
+            .name("Thread: IO Events stream".to_string())
             .spawn(move || loop {
-                let rx_guard = rx.lock().unwrap();
+                // lock stream
+                let mut stream_ = stream.lock().unwrap();
 
-                match rx_guard.recv() {
+                // Stream Writter
+                // try to read from rx channel to send data to stream
+                let rx_guard = rx.lock().unwrap();
+                match rx_guard.try_recv() {
                     Ok(msg) => {
-                        println!("Thread client write got a msg: {:?}", msg);
+                        if msg[0] == control_type::DISCONNECT as u8 {
+                            // disconnect
+                            stream_.write_all(&msg).unwrap();
+                            println!("Thread IO sended the disconnect message");
+                            thread::sleep(Duration::from_secs(2));
+                            stream_.shutdown(std::net::Shutdown::Both).unwrap();
+                            break;
+                        }
+                        println!("Thread IO got a msg to send with packet ID: {:?}", msg[0]);
                         // send message to stream
-                        let mut stream_ = stream.lock().unwrap();
                         stream_.write_all(&msg).unwrap();
-                        println!("Thread client successfully sended the message");
+                        println!("Thread IO sended the message");
                     }
                     Err(e) => {
-                        println!("Thread client write got an error: {:?}", e);
-                        break;
+                        if e == mpsc::TryRecvError::Empty {
+                            // println!("Thread IO channel is empty");
+                        } else {
+                            println!("Thread IO channel is closed");
+                            break;
+                        }
                     }
                 };
-                thread::sleep(Duration::from_millis(10));
+
+                // Stream Reader
+                {
+                    // read from stream until timeout or disconnect
+                    let mut buff = [0_u8; 4098];
+                    let mut tpcstream = &*stream_;
+                    tpcstream
+                        .set_read_timeout(Some(Duration::from_millis(30)))
+                        .unwrap();
+                    match tpcstream.read(&mut buff) {
+                        Ok(n) => {
+                            if n > 0 {
+                                // send message to event handler
+                                tx_events_handler
+                                    .lock()
+                                    .unwrap()
+                                    .send(buff[0..n].to_vec())
+                                    .unwrap();
+                                println!(
+                                    "Thread IO got a msg to process event with Packet ID: {:?}",
+                                    buff[0]
+                                );
+                            }
+                        }
+                        Err(_e) => {}
+                    };
+                }
+                thread::yield_now();
             });
     }
 
-    pub fn handle_read(
-        stream: Arc<Mutex<TcpStream>>,
-        client_connection: sync::Arc<AtomicBool>,
+    pub fn handle_events(
+        &mut self,
+        rx_events_handler: Arc<Mutex<Receiver<Vec<u8>>>>,
+        tx: Arc<Mutex<Sender<Vec<u8>>>>,
+        client_connection: Arc<AtomicBool>,
         keepalive_interval: usize,
         keepalive_pair: Arc<(Mutex<bool>, Condvar)>,
-        tx_out: sync::Arc<Mutex<Sender<String>>>,
+        tx_out: Arc<Mutex<Sender<String>>>,
     ) {
-        // let peer = stream.lock().unwrap().peer_addr().unwrap();
         let _handle_read = thread::Builder::new()
             .name("Thread: read from stream".to_string())
             .spawn(move || loop {
-                let mut buff = [0_u8; 4098];
-
-                let stream_lock = stream.lock().unwrap();
-                let mut tpcstream = &*stream_lock;
-                tpcstream
-                    .set_read_timeout(Some(Duration::from_millis(30)))
-                    .unwrap();
-                match tpcstream.read(&mut buff) {
-                    Ok(_size) => {
-                        if _size > 0 {
-                            match buff[0] & 0xF0 {
+                // read from channel
+                let rx = rx_events_handler.lock().unwrap();
+                match rx.recv() {
+                    Ok(msg) => {
+                        if !msg.is_empty() {
+                            match msg[0] & 0xF0 {
                                 control_type::CONNACK => {
                                     client_connection.store(true, Ordering::SeqCst);
                                     Client::print_all(
@@ -301,7 +348,7 @@ impl Client {
                                         tx_out.clone(),
                                     );
                                     Client::keepalive(
-                                        stream.clone(),
+                                        tx.clone(),
                                         keepalive_interval,
                                         keepalive_pair.clone(),
                                     );
@@ -316,7 +363,7 @@ impl Client {
                                     println!("Publish received!");
                                     let unvalue =
                                         Packet::<VariableHeaderPublish, PublishPayload>::unvalue(
-                                            buff.to_vec(),
+                                            msg.to_vec(),
                                         );
                                     Client::print_all(
                                         format!(
@@ -352,7 +399,7 @@ impl Client {
                                 }
                                 _ => {
                                     Client::print_all(
-                                        format!("Unexpected reply: {:?}\n", buff),
+                                        format!("Unexpected reply: {:?}\n", msg),
                                         tx_out.clone(),
                                     );
                                 }
@@ -363,8 +410,7 @@ impl Client {
                         continue;
                     }
                 }
-                drop(stream_lock);
-                thread::sleep(time::Duration::from_millis(10));
+                thread::yield_now();
             });
     }
 
@@ -376,28 +422,27 @@ impl Client {
     pub fn unsubscribe(&mut self, topic: &str) {
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
         let packet_identifier = self.get_packet_identifier();
-        let packet = packet.unsubscribe(
-            packet_identifier,
-            vec![topic.to_string()],
-        );
+        let packet = packet.unsubscribe(packet_identifier, vec![topic.to_string()]);
         let pck_value = packet.value();
         self.last_packet_sent = pck_value.clone();
-        Client::print_all(format!("--> unsubscribe topic: {} ", topic), self.tx_out.clone());
+        Client::print_all(
+            format!("--> unsubscribe topic: {} ", topic),
+            self.tx_out.clone(),
+        );
         self.send(pck_value);
     }
 
     #[allow(dead_code)]
-    pub fn subscribe (&mut self, topic: &str) {
+    pub fn subscribe(&mut self, topic: &str) {
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
         let packet_identifier = self.get_packet_identifier();
-        let packet = packet.subscribe(
-            packet_identifier,
-            vec![String::from(topic)],
-            vec![0],
-        );
+        let packet = packet.subscribe(packet_identifier, vec![String::from(topic)], vec![0]);
         let pck_value = packet.value();
         self.last_packet_sent = pck_value.clone();
-        Client::print_all(format!("--> subscribe topic: {} ", topic), self.tx_out.clone());
+        Client::print_all(
+            format!("--> subscribe topic: {} ", topic),
+            self.tx_out.clone(),
+        );
         self.send(pck_value);
     }
 
@@ -415,7 +460,10 @@ impl Client {
         );
         let pck_value = packet.value();
         self.last_packet_sent = pck_value.clone();
-        Client::print_all(format!("--> publish topic: {} value: {}", topic_name, message), self.tx_out.clone());
+        Client::print_all(
+            format!("--> publish topic: {} value: {}", topic_name, message),
+            self.tx_out.clone(),
+        );
         self.send(pck_value);
     }
 }
