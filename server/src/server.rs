@@ -3,7 +3,7 @@ use crate::logger::{Logger, Logging};
 use mqtt_packet::mqtt_packet_service::header_packet::control_flags::{self};
 use mqtt_packet::mqtt_packet_service::header_packet::{control_type, PacketHeader};
 use mqtt_packet::mqtt_packet_service::payload_packet::{
-    Payload, PublishPayload, SubscribePayload, UnsubscribePayload, suback_return_codes,
+    suback_return_codes, Payload, PublishPayload, SubscribePayload, UnsubscribePayload,
 };
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{
     connect_ack_flags, connect_return, VariableHeader, VariableHeaderPacketIdentifier,
@@ -13,7 +13,7 @@ use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket, Utils
 use rand::Rng;
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Read, Result, Write};
-use std::net::{TcpListener, TcpStream, Shutdown};
+use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -275,7 +275,6 @@ impl Server {
 
             // Credentials check
             if !hash_credentials.lock().unwrap().is_empty() {
-
                 // get the user and password from the packet
                 let user = unvalued_packet.payload.user_name;
                 let password = unvalued_packet.payload.password;
@@ -294,7 +293,10 @@ impl Server {
                             }
                         }
                         None => {
-                            logger.debug(format!("User {} not found in server credential file", user));
+                            logger.debug(format!(
+                                "User {} not found in server credential file",
+                                user
+                            ));
                             return Err(Error::new(
                                 ErrorKind::Other,
                                 format!("Client Connection with Client identifier: {} refused, user not found", client_identifier),
@@ -311,7 +313,7 @@ impl Server {
                 logger.debug("No credentials registered for this server".to_string());
             }
             // End credentials check
-            
+
             if Server::get_id_persistance_connections(
                 client_identifier,
                 hash_server_connections.clone(),
@@ -320,7 +322,7 @@ impl Server {
             {
                 logger.debug(format!("Client already connected clientId: {}", client_id));
                 // Client Persistance Clean Session, if false must resume communications with the client
-                if unvalued_packet.header.clean_session() == false {
+                if !unvalued_packet.header.clean_session() {
                     let value = hash_server_connections.lock().unwrap();
                     let old_client_connection = value.get(&client_id.clone());
                     match old_client_connection {
@@ -414,15 +416,18 @@ impl Server {
                     unvalue.payload.message,
                 ];
 
-                match tx_server.send(msg_server.clone()) {
+                match tx_server.send(msg_server) {
                     Ok(_) => {
-                        logger.debug(format!("Message sent to server to process publish for client: {}", client_id));
+                        logger.debug(format!(
+                            "Message sent to server to process publish for client: {}",
+                            client_id
+                        ));
                         // send puback if qos is 1 control_flags::QOS0 is when qos is 1
                         if unvalue.header.get_qos() == control_flags::QOS0 {
                             logger.debug("Identified QoS1 flag. PubAck sent".to_string());
                             let packet = Packet::<VariableHeaderPacketIdentifier, Payload>::new();
                             let packet = packet.puback(packet_id as u16);
-        
+
                             if let Err(e) = stream.write_all(&packet.value()) {
                                 logger.debug("Client disconnect".to_string());
                                 return Err(Error::new(
@@ -457,8 +462,7 @@ impl Server {
                             peer_addr
                         ));
                     }
-                    Err(_e) => {
-                    }
+                    Err(_e) => {}
                 }
                 // TODO Check if need to clean hash persistance connection as well
             }
@@ -476,7 +480,7 @@ impl Server {
                 let mut qos_result = Vec::<u8>::new();
                 // enviando al tx del server los topics suscriptos
                 logger.debug("Sending tx server to the subcribed topics".to_string());
-                for (index,topic) in topics.iter().enumerate() {
+                for (index, topic) in topics.iter().enumerate() {
                     let msg_server = vec![
                         "subscribe".to_string(),
                         client_id.to_string(),
@@ -485,10 +489,7 @@ impl Server {
                     ];
                     match tx_server.send(msg_server.clone()) {
                         Ok(_) => {
-                            logger.debug(format!(
-                                "Suscribe topic {} sent to server",
-                                topic
-                            ));
+                            logger.debug(format!("Suscribe topic {} sent to server", topic));
                             qos_result.push(qos_vec[index]);
                         }
                         Err(e) => {
@@ -537,7 +538,10 @@ impl Server {
                 let qos = unvalue.header.get_qos();
                 // send the unsuback if the qos is set to 1
                 if qos == control_flags::QOS0 {
-                    logger.debug(format!("Sending unsuback packet to client qos set to: {}", qos));
+                    logger.debug(format!(
+                        "Sending unsuback packet to client qos set to: {}",
+                        qos
+                    ));
                     let packet = Packet::<VariableHeader, Payload>::new();
                     let packet = packet.unsuback(packet_identifier);
                     if let Err(e) = stream.write_all(&packet.value()) {
@@ -760,7 +764,6 @@ impl Server {
                                     topic, client_id
                                 ));
                             }
-                            
                             "request_clean_session" => {
                                 // request_clean_session client_id 
                                 let client_id = msg[1].as_str();
@@ -772,7 +775,7 @@ impl Server {
                                         .unwrap()
                                         .retain(|_, vector| {
                                             vector.0.retain(|entry| entry.0 != client_id);
-                                            vector.0.len() > 0
+                                            !vector.0.is_empty()
                                         });
                                     logger.debug(format!(
                                         "Request Clean session for client id: {} success",
