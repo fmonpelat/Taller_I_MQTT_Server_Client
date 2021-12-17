@@ -8,8 +8,8 @@ use variable_header_packet::{
 };
 pub mod payload_packet;
 use payload_packet::{
-    PacketPayload, PacketPayloadSubscribe, PacketPublishPayload, PacketSubackPayload, Payload,
-    PublishPayload, SubscribePayload, UnsubscribePayload, PacketUnsubscribePayload
+    PacketPayload, PacketPayloadSubscribe, PacketPublishPayload, PacketSubackPayload,
+    PacketUnsubscribePayload, Payload, PublishPayload, SubscribePayload, UnsubscribePayload,
 };
 
 use self::payload_packet::SubackPayload;
@@ -101,7 +101,7 @@ impl Packet<VariableHeader, Payload> {
             )
             .collect();
 
-            for i in vec {
+        for i in vec {
             res.push(i);
         }
         res
@@ -401,7 +401,10 @@ impl Packet<VariableHeaderPacketIdentifier, SubscribePayload> {
         let mut readed: usize = 0;
         let header = Header::unvalue(x.clone(), &mut readed);
         // sum all elements of header.remaining_length_0 as u16
-        let remaining_len: u16 = header.remaining_length_0.iter().fold(0, |acc: u16, x| acc + *x as u16);
+        let remaining_len: u16 = header
+            .remaining_length_0
+            .iter()
+            .fold(0, |acc: u16, x| acc + *x as u16);
         let packet_length: usize = header.remaining_length_0.len() + 2 + remaining_len as usize;
 
         absolute_index += readed;
@@ -416,7 +419,8 @@ impl Packet<VariableHeaderPacketIdentifier, SubscribePayload> {
         }
         absolute_index += readed;
 
-        let payload = SubscribePayload::unvalue(x[absolute_index..(packet_length-1)].to_vec(), &mut readed);
+        let payload =
+            SubscribePayload::unvalue(x[absolute_index..(packet_length - 1)].to_vec(), &mut readed);
         if readed > 0 {
             has_payload = true;
         }
@@ -567,7 +571,10 @@ impl Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
         let mut readed: usize = 0;
         let header = Header::unvalue(x.clone(), &mut readed);
         // sum all elements of header.remaining_length_0 as u16
-        let remaining_len: u16 = header.remaining_length_0.iter().fold(0, |acc: u16, x| acc + *x as u16);
+        let remaining_len: u16 = header
+            .remaining_length_0
+            .iter()
+            .fold(0, |acc: u16, x| acc + *x as u16);
         let packet_length: usize = header.remaining_length_0.len() + 2 + remaining_len as usize;
 
         absolute_index += readed;
@@ -582,7 +589,10 @@ impl Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
         }
         absolute_index += readed;
 
-        let payload = UnsubscribePayload::unvalue(x[absolute_index..(packet_length-1)].to_vec(), &mut readed);
+        let payload = UnsubscribePayload::unvalue(
+            x[absolute_index..(packet_length - 1)].to_vec(),
+            &mut readed,
+        );
         if readed > 0 {
             has_payload = true;
         }
@@ -625,7 +635,12 @@ impl<T, P> Utils for Packet<T, P> {
 
 pub trait ClientPacket {
     fn connect(&self, client_identifier: String) -> Packet<VariableHeader, Payload>;
-    fn connect_with_credentials(&self, client_identifier: String, username: String, password: String) -> Packet<VariableHeader, Payload>;
+    fn connect_with_credentials(
+        &self,
+        client_identifier: String,
+        username: String,
+        password: String,
+    ) -> Packet<VariableHeader, Payload>;
     fn disconnect(&self) -> Packet<VariableHeader, Payload>;
     fn pingreq(&self) -> Packet<VariableHeader, Payload>;
     fn puback(&self, packet_identifier: u16) -> Packet<VariableHeaderPacketIdentifier, Payload>;
@@ -652,14 +667,21 @@ pub trait ClientPacket {
 }
 impl<T, P> ClientPacket for Packet<T, P> {
     /// Creates a Connect packet with credentials
-    fn connect_with_credentials(&self, client_identifier: String, username: String, password: String) -> Packet<VariableHeader, Payload> {
-        let mut payload = Payload::default();
-        payload.client_identifier = client_identifier.clone();
-        payload.user_name = username;
-        payload.password = password;
+    fn connect_with_credentials(
+        &self,
+        client_identifier: String,
+        username: String,
+        password: String,
+    ) -> Packet<VariableHeader, Payload> {
+        let payload = payload_packet::Payload {
+            client_identifier: client_identifier.clone(),
+            user_name: username,
+            password,
+            ..Default::default()
+        };
         let mut packet = self.connect(client_identifier);
         packet.payload = payload;
-        return packet;
+        packet
     }
 
     /// Creates a Connect packet
@@ -761,7 +783,7 @@ impl<T, P> ClientPacket for Packet<T, P> {
     ) -> Packet<VariableHeaderPublish, PublishPayload> {
         let header = Header {
             control_type: control_type::PUBLISH,
-            control_flags: (dup << 4) as u8 | (qos<<1) as u8 | retain as u8,
+            control_flags: (dup << 4) as u8 | (qos << 1) as u8 | retain as u8,
             remaining_length_0: vec![0],
         };
         let variable_header = VariableHeaderPublish {
@@ -816,7 +838,7 @@ impl<T, P> ClientPacket for Packet<T, P> {
     fn unsubscribe(
         &self,
         packet_identifier: u16,
-        topic_names: Vec<String>
+        topic_names: Vec<String>,
     ) -> Packet<VariableHeaderPacketIdentifier, UnsubscribePayload> {
         let mut header = Header {
             control_type: control_type::UNSUBSCRIBE,
@@ -963,9 +985,7 @@ mod tests {
         #[test]
         fn check_unsuback_packet() {
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.unsuback(
-                0x1234,
-            );
+            let packet = packet.unsuback(0x1234);
             let value = packet.value();
             assert_eq!(value.len(), 4);
             let unvalue = Packet::<VariableHeaderPacketIdentifier, Payload>::unvalue(value);
@@ -978,14 +998,12 @@ mod tests {
         #[test]
         fn check_unsubscribe_packet() {
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.unsubscribe(
-                1,
-                vec!["topic1".to_string(), "topic2".to_string()],
-            );
+            let packet = packet.unsubscribe(1, vec!["topic1".to_string(), "topic2".to_string()]);
             let value = packet.value();
             assert_eq!(value.len(), 20);
-            let unvalue = Packet::<VariableHeaderPacketIdentifier, UnsubscribePayload>::unvalue(value);
-            
+            let unvalue =
+                Packet::<VariableHeaderPacketIdentifier, UnsubscribePayload>::unvalue(value);
+
             assert_eq!(unvalue.header.control_type, control_type::UNSUBSCRIBE);
             assert_eq!(unvalue.header.control_flags, control_flags::QOS0);
             assert_eq!(unvalue.header.remaining_length_0[0], 18);
@@ -1041,7 +1059,8 @@ mod tests {
             assert_eq!(value[0], control_type::SUBSCRIBE);
             assert_eq!(value[1], remaining_len);
 
-            let unvalue = Packet::<VariableHeaderPacketIdentifier, SubscribePayload>::unvalue(value);
+            let unvalue =
+                Packet::<VariableHeaderPacketIdentifier, SubscribePayload>::unvalue(value);
             // println!("{:?}", unvalue);
             assert_eq!(unvalue.header.control_type, control_type::SUBSCRIBE);
             assert_eq!(unvalue.header.control_flags, control_flags::RESERVED);
@@ -1159,9 +1178,11 @@ mod tests {
                         .iter()
                         .copied()
                         .chain(
-                            client_identifier.as_bytes().iter().copied()
-                                .chain(
-                                    vec![0 as u8; 8].iter().copied())
+                            client_identifier
+                                .as_bytes()
+                                .iter()
+                                .copied()
+                                .chain(vec![0 as u8; 8].iter().copied()),
                         ),
                 )
                 .collect();
@@ -1290,7 +1311,8 @@ mod tests {
             let qos = 1;
             let retain = 0;
             let header = vec![
-                (control_type::PUBLISH + (((dup<<4) as u8 | (qos<<1) as u8 | retain) as u8)) as u8,
+                (control_type::PUBLISH + (((dup << 4) as u8 | (qos << 1) as u8 | retain) as u8))
+                    as u8,
                 24,
             ]; // length of 24 for this example
             let topic_name = String::from("testTopic");
@@ -1336,8 +1358,11 @@ mod tests {
             assert!(publish_stub.eq(&value));
             let unvalue = Packet::<VariableHeaderPublish, PublishPayload>::unvalue(value);
             // println!("unvalue {:?}", unvalue);
-            assert_eq!(unvalue.header.control_type , control_type::PUBLISH);
-            assert_eq!(unvalue.header.control_flags, (((dup<<4) as u8 | (qos<<1) as u8 | retain) as u8) as u8);
+            assert_eq!(unvalue.header.control_type, control_type::PUBLISH);
+            assert_eq!(
+                unvalue.header.control_flags,
+                (((dup << 4) as u8 | (qos << 1) as u8 | retain) as u8) as u8
+            );
             assert_eq!(unvalue.header.remaining_length_0, vec![24]);
             assert_eq!(
                 unvalue.variable_header.topic_name,

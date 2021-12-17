@@ -210,7 +210,7 @@ mod tests {
         header.control_flags = 0x01;
         assert_eq!(header.clean_session(), true);
     }
-    
+
     #[test]
     fn get_retain() {
         let mut header = Header {
