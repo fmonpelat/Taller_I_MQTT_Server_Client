@@ -13,7 +13,7 @@ use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket, Utils
 use rand::Rng;
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Read, Result, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream, Shutdown};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -319,8 +319,8 @@ impl Server {
             .unwrap()
             {
                 logger.debug(format!("Client already connected clientId: {}", client_id));
-                // Client Persistance Clean Session
-                if unvalued_packet.header.clean_session() {
+                // Client Persistance Clean Session, if false must resume communications with the client
+                if unvalued_packet.header.clean_session() == false {
                     let value = hash_server_connections.lock().unwrap();
                     let old_client_connection = value.get(&client_id.clone());
                     match old_client_connection {
@@ -338,6 +338,22 @@ impl Server {
                             logger.debug(format!(
                                 "Clean session was asked but no connection was found for clientId: {}",
                                 client_id
+                            ));
+                        }
+                    };
+                } else {
+                    // unsubscribe tx of old client client_id from topics
+                    match tx_server.send(vec![format!("request_clean_session {}", client_id)]) {
+                        Ok(_) => {
+                            logger.debug(format!(
+                                "Clean session was requested for clientId: {}",
+                                client_id
+                            ));
+                        }
+                        Err(e) => {
+                            logger.debug(format!(
+                                "Error sending request_clean_session to server: {}",
+                                e
                             ));
                         }
                     };
@@ -433,11 +449,18 @@ impl Server {
                     .lock()
                     .unwrap()
                     .remove(&peer_addr.ip().to_string());
+
+                match stream.shutdown(Shutdown::Both) {
+                    Ok(_) => {
+                        logger.debug(format!(
+                            "Peer {} has been removed from hash server connections",
+                            peer_addr
+                        ));
+                    }
+                    Err(_e) => {
+                    }
+                }
                 // TODO Check if need to clean hash persistance connection as well
-                logger.debug(format!(
-                    "Peer {} has been removed from hash server connections",
-                    peer_addr
-                ));
             }
 
             control_type::SUBSCRIBE => {
@@ -736,6 +759,26 @@ impl Server {
                                     "Unsubscribed topic_name: {} for client id: {}",
                                     topic, client_id
                                 ));
+                            }
+                            
+                            "request_clean_session" => {
+                                // request_clean_session client_id 
+                                let client_id = msg[1].as_str();
+
+                                // unsubscribe client_id from all topics
+                                if !client_id.is_empty() {
+                                    hash_topics
+                                        .lock()
+                                        .unwrap()
+                                        .retain(|_, vector| {
+                                            vector.0.retain(|entry| entry.0 != client_id);
+                                            vector.0.len() > 0
+                                        });
+                                    logger.debug(format!(
+                                        "Request Clean session for client id: {} success",
+                                        client_id
+                                    ));
+                                }
                             }
                             _ => {
                                 logger.debug(format!(
