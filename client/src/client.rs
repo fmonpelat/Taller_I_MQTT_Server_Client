@@ -279,8 +279,7 @@ impl Client {
                                 Ok(_) => {
                                     println!("Stream shutdown");
                                 }
-                                Err(_e) => {
-                                }
+                                Err(_e) => {}
                             }
                             break;
                         }
