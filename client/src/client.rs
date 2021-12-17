@@ -275,7 +275,13 @@ impl Client {
                             stream_.write_all(&msg).unwrap();
                             println!("Thread IO sended the disconnect message");
                             thread::sleep(Duration::from_secs(2));
-                            stream_.shutdown(std::net::Shutdown::Both).unwrap();
+                            match stream_.shutdown(std::net::Shutdown::Both) {
+                                Ok(_) => {
+                                    println!("Stream shutdown");
+                                }
+                                Err(_e) => {
+                                }
+                            }
                             break;
                         }
                         println!("Thread IO got a msg to send with packet ID: {:?}", msg[0]);
@@ -308,7 +314,7 @@ impl Client {
                                 tx_events_handler
                                     .lock()
                                     .unwrap()
-                                    .send(buff[0..n].to_vec())
+                                    .send(buff.to_vec())
                                     .unwrap();
                                 println!(
                                     "Thread IO got a msg to process event with Packet ID: {:?}",
