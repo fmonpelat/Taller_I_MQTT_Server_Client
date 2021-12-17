@@ -34,13 +34,6 @@ fn build_ui(application: &gtk::Application) {
         }
     });
 
-    // TODO: check why this doesn't work (thread 'main' panicked at 'Couldn't get qos_option_values', src/main.rs:36:72)
-    // Append the option values for QOS publish on GtkComboBox id qos_values
-    // let qos_values: ComboBoxText = builder.object("qos_option_values").expect("Couldn't get qos_option_values");
-    // qos_values.set_active(Some(0));
-    // qos_values.append_text("0");
-    // qos_values.append_text("1");
-
     let connect_text: gtk::Label = builder.object("connect_text").expect("Couldn't get connect_text");
     connect_text.hide();
 
@@ -128,9 +121,11 @@ fn build_ui(application: &gtk::Application) {
                     connect_text.set_text(MESSAGE_CONNECTION_START);
                     window.show();
                     // set variables of next window
+                    let client_id_connection: gtk::Label =builder.object("client_id_connection").expect("Couldn't get client_id_connection");
                     let server_host_connection: gtk::Label = builder.object("server_host_connection").expect("Couldn't get server_host_connection");
                     let server_port_connection: gtk::Label = builder.object("server_port_connection").expect("Couldn't get server_port_connection");
                     let credential_connection: gtk::Label = builder.object("connect_credential_connection").expect("Couldn't get credential_connection");
+                    client_id_connection.set_text(format!("Client ID: {}", client.get_id_client()).as_str());
                     server_host_connection.set_text(format!("Server host: {}",host.clone()).as_str());
                     server_port_connection.set_text(format!("Server port: {}",port.clone()).as_str());
                     if credentials_needed {
@@ -221,11 +216,8 @@ fn build_ui(application: &gtk::Application) {
             let topic_entry: gtk::Entry = builder.object("topic_entry").expect("Couldn't get topic_entry");
             let retain_check: gtk::CheckButton = builder.object("retain_check").expect("Couldn't get retain_check");
             let message_publish: gtk::Entry = builder.object("message_publish").expect("Couldn't get message_publish");
-            // let qos_values: gtk::ComboBoxText = builder.object("qos_values").expect("Couldn't get qos_values");
-
-            // let qos = qos_values.active_id().unwrap().to_string().as_bytes()[0];
-            // println!("Active QoS: {}", qos);
-            let qos = 0;
+            let qos_entry:Entry = builder.object("qos_entry").expect("Couldn't get qos_entry");
+            let qos:u8 = qos_entry.text().to_string().parse().expect("Couldn't parse qos");
             let topic = topic_entry.text().to_string();
             let dup = 0;
             let retain = if retain_check.is_active() { 1 } else { 0 };
@@ -298,9 +290,15 @@ fn build_ui(application: &gtk::Application) {
             if ! client.is_connected() {
                 connect_text.set_text("Disconnected from server");
             }
-        });
+            // set to empty for text entry
+            let username_entry: gtk::Entry = builder.object("username_entry").expect("Couldn't get username_entry");
+            let password_entry: gtk::Entry = builder.object("password_entry").expect("Couldn't get password_entry");
+            let credentials_checkbox: gtk::CheckButton = builder.object("check_connect_secured").expect("Couldn't get credentials_checkbox");
+            username_entry.set_text("");
+            password_entry.set_text("");
+            credentials_checkbox.set_active(false);
+          });
     }
-
 }
 
 // Messages enum for receiver thread for the connected screen messages section
