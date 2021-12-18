@@ -73,6 +73,7 @@ fn main() {
                             port.clone(),
                             username.clone(),
                             password.clone(),
+                            true,
                         ) {
                             Ok(_) => {
                                 println!(
@@ -253,6 +254,7 @@ fn main() {
                                 "3333".to_string(),
                                 "".to_string(),
                                 "".to_string(),
+                                true,
                             )
                             .expect("Error connecting");
                         let client_identifier = client.get_id_client();
