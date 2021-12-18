@@ -634,7 +634,11 @@ impl<T, P> Utils for Packet<T, P> {
 }
 
 pub trait ClientPacket {
-    fn connect(&self, client_identifier: String, clean_session: bool) -> Packet<VariableHeader, Payload>;
+    fn connect(
+        &self,
+        client_identifier: String,
+        clean_session: bool,
+    ) -> Packet<VariableHeader, Payload>;
     fn connect_with_credentials(
         &self,
         client_identifier: String,
@@ -687,7 +691,11 @@ impl<T, P> ClientPacket for Packet<T, P> {
     }
 
     /// Creates a Connect packet
-    fn connect(&self, client_identifier: String, clean_session: bool) -> Packet<VariableHeader, Payload> {
+    fn connect(
+        &self,
+        client_identifier: String,
+        clean_session: bool,
+    ) -> Packet<VariableHeader, Payload> {
         let header = Header {
             control_type: control_type::CONNECT,    // 0x10
             control_flags: control_flags::RESERVED, // 0x00

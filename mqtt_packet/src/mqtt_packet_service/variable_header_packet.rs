@@ -40,7 +40,6 @@ pub trait PacketVariableHeader {
 }
 
 impl PacketVariableHeader for VariableHeader {
-
     fn clean_session(&self) -> bool {
         self.connect_flags & connect_flags::CLEAN_SESSION == connect_flags::CLEAN_SESSION
     }

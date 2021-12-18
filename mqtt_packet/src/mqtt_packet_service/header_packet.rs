@@ -57,7 +57,6 @@ pub trait PacketHeader {
 }
 
 impl PacketHeader for Header {
-
     fn get_qos(&self) -> u8 {
         let mut qos = 0x00;
         if self.control_flags & 0x02 == 0x02 {
