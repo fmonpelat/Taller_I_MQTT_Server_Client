@@ -7,7 +7,7 @@ use mqtt_packet::mqtt_packet_service::payload_packet::{
 };
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{
     connect_ack_flags, connect_return, VariableHeader, VariableHeaderPacketIdentifier,
-    VariableHeaderPublish,
+    VariableHeaderPublish, PacketVariableHeader,
 };
 use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket, Utils};
 use rand::Rng;
@@ -322,7 +322,7 @@ impl Server {
             {
                 logger.debug(format!("Client already connected clientId: {}", client_id));
                 // Client Persistance Clean Session, if false must resume communications with the client
-                if !unvalued_packet.header.clean_session() {
+                if !unvalued_packet.variable_header.clean_session() {
                     let value = hash_server_connections.lock().unwrap();
                     let old_client_connection = value.get(&client_id.clone());
                     match old_client_connection {
@@ -345,7 +345,7 @@ impl Server {
                     };
                 } else {
                     // unsubscribe tx of old client client_id from topics
-                    match tx_server.send(vec![format!("request_clean_session {}", client_id)]) {
+                    match tx_server.send(vec!["request_clean_session".to_string(), client_id.to_string()]) {
                         Ok(_) => {
                             logger.debug(format!(
                                 "Clean session was requested for clientId: {}",
