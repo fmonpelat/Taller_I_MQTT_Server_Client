@@ -327,8 +327,6 @@ impl PacketUnsubscribePayload for UnsubscribePayload {
     }
 }
 
-
-
 /// Suscribe has the payload type SuscribePayload
 #[derive(Debug, Default)]
 pub struct SubackPayload {
@@ -481,7 +479,6 @@ mod tests {
         assert_eq!(payload.user_name, unvalue.user_name);
         assert_eq!(payload.password, unvalue.password);
         assert_eq!(readed, value.len());
-
     }
 
     #[test]

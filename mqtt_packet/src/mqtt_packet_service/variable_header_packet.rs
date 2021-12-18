@@ -36,9 +36,14 @@ pub struct VariableHeader {
 pub trait PacketVariableHeader {
     fn value(&self) -> Vec<u8>;
     fn unvalue(x: Vec<u8>, readed: &mut usize) -> VariableHeader;
+    fn clean_session(&self) -> bool;
 }
 
 impl PacketVariableHeader for VariableHeader {
+    fn clean_session(&self) -> bool {
+        self.connect_flags & connect_flags::CLEAN_SESSION == connect_flags::CLEAN_SESSION
+    }
+
     fn value(&self) -> Vec<u8> {
         let mut variable_header_vec: Vec<u8> = Vec::with_capacity(12);
         for i in &self.protocol_name {
@@ -154,6 +159,20 @@ impl PacketVariableHeaderPacketIdentifier for VariableHeaderPacketIdentifier {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn check_clean_session() {
+        let mut variable_header = VariableHeader {
+            protocol_name: [0x00, 0x04, b'M', b'Q', b'T', b'T'].to_vec(),
+            protocol_level: 4,
+            connect_flags: 0,
+            keep_alive: 0,
+        };
+        assert_eq!(variable_header.clean_session(), false);
+
+        variable_header.connect_flags = connect_flags::CLEAN_SESSION;
+        assert_eq!(variable_header.clean_session(), true);
+    }
 
     #[test]
     fn test_value_publishack() {

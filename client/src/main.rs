@@ -73,6 +73,7 @@ fn main() {
                             port.clone(),
                             username.clone(),
                             password.clone(),
+                            true,
                         ) {
                             Ok(_) => {
                                 println!(
@@ -253,6 +254,7 @@ fn main() {
                                 "3333".to_string(),
                                 "".to_string(),
                                 "".to_string(),
+                                true,
                             )
                             .expect("Error connecting");
                         let client_identifier = client.get_id_client();
@@ -311,24 +313,6 @@ fn main() {
                         println!("--> Unsubscribe topic: {}", topic_name);
                         client.send(packet.value());
                     }
-                }
-
-                "test-p" => {
-                    let packet_identifier = client.get_packet_identifier();
-                    let packet = packet.publish(
-                        0,
-                        0,
-                        0,
-                        packet_identifier,
-                        "asasa".to_string(),
-                        "asasa".to_string(),
-                    );
-                    println!(
-                        "--> publish topic: {} value: {}",
-                        "asasa".to_string(),
-                        "asasa".to_string()
-                    );
-                    client.send(packet.value());
                 }
 
                 "test-connection" => {
