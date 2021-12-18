@@ -634,12 +634,13 @@ impl<T, P> Utils for Packet<T, P> {
 }
 
 pub trait ClientPacket {
-    fn connect(&self, client_identifier: String) -> Packet<VariableHeader, Payload>;
+    fn connect(&self, client_identifier: String, clean_session: bool) -> Packet<VariableHeader, Payload>;
     fn connect_with_credentials(
         &self,
         client_identifier: String,
         username: String,
         password: String,
+        clean_session: bool,
     ) -> Packet<VariableHeader, Payload>;
     fn disconnect(&self) -> Packet<VariableHeader, Payload>;
     fn pingreq(&self) -> Packet<VariableHeader, Payload>;
@@ -672,6 +673,7 @@ impl<T, P> ClientPacket for Packet<T, P> {
         client_identifier: String,
         username: String,
         password: String,
+        clean_session: bool,
     ) -> Packet<VariableHeader, Payload> {
         let payload = payload_packet::Payload {
             client_identifier: client_identifier.clone(),
@@ -679,13 +681,13 @@ impl<T, P> ClientPacket for Packet<T, P> {
             password,
             ..Default::default()
         };
-        let mut packet = self.connect(client_identifier);
+        let mut packet = self.connect(client_identifier, clean_session);
         packet.payload = payload;
         packet
     }
 
     /// Creates a Connect packet
-    fn connect(&self, client_identifier: String) -> Packet<VariableHeader, Payload> {
+    fn connect(&self, client_identifier: String, clean_session: bool) -> Packet<VariableHeader, Payload> {
         let header = Header {
             control_type: control_type::CONNECT,    // 0x10
             control_flags: control_flags::RESERVED, // 0x00
@@ -695,7 +697,11 @@ impl<T, P> ClientPacket for Packet<T, P> {
         let variable_header: VariableHeader = VariableHeader {
             protocol_name,
             protocol_level: 0x04,
-            connect_flags: connect_flags::CLEAN_SESSION, // what connect flags do i need?
+            connect_flags: if clean_session {
+                connect_flags::CLEAN_SESSION
+            } else {
+                connect_flags::RESERVED
+            },
             keep_alive: 0x00,
         };
         let payload = Payload {
@@ -1142,7 +1148,7 @@ mod tests {
             // let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
             let client_identifier = String::from("testId");
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.connect(client_identifier);
+            let packet = packet.connect(client_identifier, true);
             let mut readed: usize = 0;
             let value = packet.value();
             let remaining_len = Packet::<VariableHeader, Payload>::get_packet_length(
@@ -1157,7 +1163,7 @@ mod tests {
         fn test_unvalue_variableheader_payload() {
             let client_identifier = String::from("testId");
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.connect(client_identifier);
+            let packet = packet.connect(client_identifier, true);
             let value = packet.value();
             // println!("packet bytes: {:?}", value);
             let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(value.clone());
@@ -1187,7 +1193,7 @@ mod tests {
                 )
                 .collect();
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.connect(client_identifier);
+            let packet = packet.connect(client_identifier, true);
             let value = packet.value();
             // println!("value connect: {:?}", value);
             // println!("connect stub: {:?}", connect_stub);
