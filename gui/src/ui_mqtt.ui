@@ -706,17 +706,27 @@
                 <property name="label-fill">True</property>
                 <property name="resize-toplevel">True</property>
                 <child>
-                  <object class="GtkTextView" id="message_view">
+                  <object class="GtkScrolledWindow" id="scrolled_messages">
                     <property name="visible">True</property>
                     <property name="can-focus">True</property>
-                    <property name="no-show-all">True</property>
-                    <property name="margin-right">1</property>
                     <property name="hexpand">True</property>
                     <property name="vexpand">True</property>
-                    <property name="resize-mode">queue</property>
-                    <property name="editable">False</property>
-                    <property name="input-purpose">terminal</property>
-                    <property name="monospace">True</property>
+                    <property name="shadow-type">in</property>
+                    <child>
+                      <object class="GtkTextView" id="message_view">
+                        <property name="visible">True</property>
+                        <property name="can-focus">True</property>
+                        <property name="no-show-all">True</property>
+                        <property name="margin-right">1</property>
+                        <property name="hexpand">True</property>
+                        <property name="vexpand">True</property>
+                        <property name="resize-mode">queue</property>
+                        <property name="editable">False</property>
+                        <property name="justification">fill</property>
+                        <property name="input-purpose">terminal</property>
+                        <property name="monospace">True</property>
+                      </object>
+                    </child>
                   </object>
                 </child>
                 <child type="label">
@@ -784,7 +794,7 @@ To start using the application please connect to server first</property>
           </packing>
         </child>
         <child>
-          <!-- n-columns=5 n-rows=4 -->
+          <!-- n-columns=5 n-rows=5 -->
           <object class="GtkGrid" id="grid_connection">
             <property name="visible">True</property>
             <property name="can-focus">False</property>
@@ -894,12 +904,63 @@ To start using the application please connect to server first</property>
             <child>
               <placeholder/>
             </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
           </object>
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
             <property name="padding">3</property>
             <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="halign">start</property>
+            <property name="margin-left">145</property>
+            <property name="margin-start">145</property>
+            <property name="margin-bottom">10</property>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <object class="GtkCheckButton" id="clean_session">
+                <property name="label" translatable="yes">Clean session</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">False</property>
+                <property name="halign">start</property>
+                <property name="draw-indicator">True</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">2</property>
           </packing>
         </child>
         <child>
@@ -937,7 +998,7 @@ To start using the application please connect to server first</property>
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">3</property>
+            <property name="position">4</property>
           </packing>
         </child>
         <child>
@@ -1067,7 +1128,7 @@ To start using the application please connect to server first</property>
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">4</property>
+            <property name="position">5</property>
           </packing>
         </child>
         <child>
@@ -1129,8 +1190,11 @@ To start using the application please connect to server first</property>
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">6</property>
+            <property name="position">7</property>
           </packing>
+        </child>
+        <child>
+          <placeholder/>
         </child>
         <child>
           <placeholder/>

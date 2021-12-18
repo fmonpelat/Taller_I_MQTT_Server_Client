@@ -74,6 +74,9 @@ fn build_ui(application: &gtk::Application) {
     let mut client = Client::new();
     client.set_keepalive_interval(120); // set keepalive interval to 2 minutes
 
+    // if clean_session is set then the aplication will clean the session for the client
+    let clean_session: CheckButton = builder.object("clean_session").expect(" Couldnt clean_session");
+
     // wrapping shared resources for thread safety
     let client = Arc::new(Mutex::new(client));
     let builder = Arc::new(Mutex::new(builder));
@@ -145,6 +148,7 @@ fn build_ui(application: &gtk::Application) {
                 port.clone(),
                 username.clone(),
                 password.clone(),
+                clean_session.is_active(),
             ) {
                 Ok(rx_out) => {
                     println!("Connected to server");
@@ -349,6 +353,13 @@ fn build_ui(application: &gtk::Application) {
                 .expect("Couldn't get main_window");
             client.disconnect();
             window_connection.hide();
+            //window_connection.connect_delete_event(|_,_| {
+            //    gtk::main_quit();
+            //    Inhibit(false)
+            //});
+            //window_connection.connect_delete_event(move |_win,_| {
+            //    _win.hide_on_delete()
+            //});
             let connect_text: gtk::Label = builder
                 .object("connect_text")
                 .expect("Couldn't get connect_text");
@@ -366,9 +377,32 @@ fn build_ui(application: &gtk::Application) {
             let credentials_checkbox: gtk::CheckButton = builder
                 .object("check_connect_secured")
                 .expect("Couldn't get credentials_checkbox");
+            let topic_entry: gtk::Entry = builder
+                .object("topic_entry")
+                .expect("Couldn't get topic_entry");
+            let retain_check: gtk::CheckButton = builder
+                .object("retain_check")
+                .expect("Couldn't get retain_check");
+            let message_publish: gtk::Entry = builder
+                .object("message_publish")
+                .expect("Couldn't get message_publish");
+            let text_view: TextView = builder
+                .object("message_view")
+                .expect("Couldn't get message_view");
+            let buffer = text_view.buffer().unwrap();
+            //let mut start_buffer = buffer.iter_at_line(0);
+            //let mut end_buffer = buffer.end_iter();
+            buffer.delete(
+                &mut buffer.start_iter(),
+                &mut buffer.end_iter(),
+            );
             username_entry.set_text("");
             password_entry.set_text("");
             credentials_checkbox.set_active(false);
+            topic_entry.set_text("");
+            message_publish.set_text("");
+            retain_check.set_active(false);
+            
         });
     }
 }
