@@ -137,6 +137,7 @@ impl Server {
                                 }
                                 Err(e) => {
                                     logger.debug(format!("Error: {}", e));
+                                    break; // stopping thread
                                 }
                             }
                         } else {
