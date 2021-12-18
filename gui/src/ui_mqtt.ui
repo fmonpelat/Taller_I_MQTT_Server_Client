@@ -96,6 +96,7 @@
                             <property name="visible">True</property>
                             <property name="can-focus">False</property>
                             <property name="halign">start</property>
+                            <property name="margin-top">10</property>
                             <property name="margin-bottom">8</property>
                             <property name="label" translatable="yes">Client id</property>
                           </object>
@@ -173,7 +174,7 @@
                         <property name="receives-default">True</property>
                         <property name="halign">start</property>
                         <property name="margin-right">1</property>
-                        <property name="margin-top">30</property>
+                        <property name="margin-top">23</property>
                         <property name="margin-bottom">22</property>
                       </object>
                       <packing>
