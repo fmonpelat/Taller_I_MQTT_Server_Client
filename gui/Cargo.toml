@@ -8,5 +8,6 @@ edition = "2018"
 # target = "aarch64-apple-darwin"
 
 [dependencies]
+chrono = "0.4.19"
 client= { path= "../client" }
 gtk = { git = "https://github.com/gtk-rs/gtk3-rs.git" }
