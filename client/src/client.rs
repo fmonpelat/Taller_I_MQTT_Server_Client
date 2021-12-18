@@ -193,6 +193,7 @@ impl Client {
         port: String,
         username: String,
         password: String,
+        clean_session: bool,
     ) -> Result<Arc<Mutex<Receiver<String>>>, &str> {
         self.server_host = host;
         self.server_port = port;
@@ -215,7 +216,7 @@ impl Client {
                         "No username provided, skipping username/password for client {}",
                         self.client_identifier
                     );
-                    packet = packet.connect(self.client_identifier.clone());
+                    packet = packet.connect(self.client_identifier.clone(), clean_session);
                 } else {
                     println!(
                         "Connecting with credentials for client {}",
@@ -225,6 +226,7 @@ impl Client {
                         self.client_identifier.clone(),
                         self.username.clone(),
                         self.password.clone(),
+                        clean_session,
                     );
                 }
                 let pck_value = packet.value();
