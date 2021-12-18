@@ -6,8 +6,8 @@ use mqtt_packet::mqtt_packet_service::payload_packet::{
     suback_return_codes, Payload, PublishPayload, SubscribePayload, UnsubscribePayload,
 };
 use mqtt_packet::mqtt_packet_service::variable_header_packet::{
-    connect_ack_flags, connect_return, VariableHeader, VariableHeaderPacketIdentifier,
-    VariableHeaderPublish, PacketVariableHeader,
+    connect_ack_flags, connect_return, PacketVariableHeader, VariableHeader,
+    VariableHeaderPacketIdentifier, VariableHeaderPublish,
 };
 use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet, ServerPacket, Utils};
 use rand::Rng;
@@ -345,7 +345,10 @@ impl Server {
                     };
                 } else {
                     // unsubscribe tx of old client client_id from topics
-                    match tx_server.send(vec!["request_clean_session".to_string(), client_id.to_string()]) {
+                    match tx_server.send(vec![
+                        "request_clean_session".to_string(),
+                        client_id.to_string(),
+                    ]) {
                         Ok(_) => {
                             logger.debug(format!(
                                 "Clean session was requested for clientId: {}",
