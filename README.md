@@ -50,7 +50,7 @@ Los parámetros con los que se inicia el servidor se encuentran especificados en
 * **host:** Dirección del servidor.
 * **port:** Puerto en cual el servidor escuchará por solicitudes
 * **logfile:** Path del archivo donde se irán almacenando todos los registros tanto de las solicitudes como de las acciones que se van realizando.
-* **credentials_file:** Path del archivo el cual servidor levanta los datos de los usuarios que pueden conectarse en forma segura.
+* **credentials_file:** Path del archivo el cual el servidor levanta los datos de los usuarios que pueden conectarse en forma segura.
 
 Iniciando el cliente
 --------------------
@@ -69,6 +69,14 @@ Los parámetros con los que se debe iniciar el cliente son los siguientes:
 * **Server host:** Dirección del servidor.
 * **Server Port:** Puerto del servidor.
 * **Clean session:** Puede estar activada o desactivada. Para cuando se realiza la conexión con el Clean session activado, si el subscriber pierde la conexión, entonces todos los mensajes que hayan sido publicados a ese topic no van a ser almacenados y cuando el subscriber se reconecta, habrá perdido estos mensajes. Caso contrario, si el Clean session ha sido desactivado, entonces los mensajes serán almacenados y entregados al cliente cuando este se reconecte.
+* **Last will testament:** Servicio que proporciona una forma para que los clientes respondan a desconexiones _ungracefully_ de una manera adecuada. Se se utiliza para notificar a los suscriptores de un cierre inesperado del _publisher_.
+   
+   El proceso básico es el siguiente:
+
+   1. El _publisher_ le dice al broker que notifique a todos los suscriptores a un tema, utilizando el último mensaje de voluntad( **Will topic** ), en caso de que se rompa la conexión.
+   2. Si el broker detecta una interrupción de la conexión, envía el mensaje de última voluntad a todos los suscriptores de ese tema( **Will message** ).
+
+
 * **Connect secure:** Servicio al cual los clientes se pueden autenticar o no al conectarse al servidor. Los clientes al autenticarse deben ingresar tanto el usuario como la contraseña.
 
 
@@ -137,3 +145,7 @@ Además, el broker puede manejar hasta varios clientes MQTT conectados simultán
 También contiene la sesión de todos los clientes persistentes, incluidas las suscripciones y los mensajes retenidos. Otra responsabilidad del broker es la autenticación y autorización de los clientes que requieren conectarse de forma segura. Como se mencionó más arriba, el servidor levanta de un archivo las credenciales de los clientes que pueden autenticarse al mismo; en él se tiene los usuarios y contraseñas de los clientes.
 
 Adicionalmente, el broker almacena todos los registros tanto de las solicitudes como de las acciones que se van realizando en un archivo log para su posterior análisis de ser necesario.
+
+Un ejemplo del funcionamiento del broker es el siguiente:
+
+![server_process](/images/server_process.png "Proceso del broker")
