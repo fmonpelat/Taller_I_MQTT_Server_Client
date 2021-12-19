@@ -2,6 +2,26 @@
 
 
 ## Equipo - Los Rustmonnaz
+
+Tabla de contenidos
+=================
+
+<!--ts-->
+   * [Integrantes](#integrantes)
+   * [Objetivo del trabajo práctico](#objetivo-del-trabajo-practico)
+   * [Comandos de ejecución](#comandos-de-ejecucion)
+      * [Iniciando el servidor](#iniciando-el-servidor)
+      * [Iniciando el cliente](#iniciando-el-cliente)
+
+   * [Iniciando la conexión con el servidor](#iniciando-la-conexión-con-el-servidor)
+      * [Connection](#connection)
+      * [Publish](#publish)
+      * [Subscriptions](#subscriptions)
+      * [Messages](#messages)
+
+   * [Conexión del servidor o Broker](#conexion-del-servidor-o-broker)
+<!--te-->
+
 ### Integrantes
 * Facundo Monpelat
 * Cynthia Gamarra
@@ -92,3 +112,14 @@ La especificación de los requerimientos del trabajo práctico se encuentra en e
     **- Messages**
 
     En esta sección el cliente puede observar en tiempo real todos los mensajes que recibe del broker, tanto de sus publicaciones como de los tópicos al cual se suscribió.
+
+
+* **Conexión del servidor o Broker**
+
+    Es el corazón del protocolo MQTT. Principalmente el encargado de gestionar el flujo de mensajes; recibe todos los mensajes, los filtra, decide quién está interesado en él y luego envia el mensaje a todos los clientes suscritos.
+
+    Además, el broker puede manejar hasta varios clientes MQTT conectados simultáneamente.
+
+    También contiene la sesión de todos los clientes persistentes, incluidas las suscripciones y los mensajes retenidos. Otra responsabilidad del broker es la autenticación y autorización de los clientes que requieren conectarse de forma segura. Como se mencionó más arriba, el servidor levanta de un archivo las credenciales de los clientes que pueden autenticarse al mismo; en él se tiene los usuarios y contraseñas de los clientes.
+
+    Adicionalmente, el broker almacena todos los registros tanto de las solicitudes como de las acciones que se van realizando en un archivo log para su posterior análisis de ser necesario.
