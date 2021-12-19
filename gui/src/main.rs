@@ -1,18 +1,17 @@
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, Box, Builder, Button, CheckButton, Entry, Grid, TextView};
-// use gtk::prelude::EntryExt;
-// use gtk::prelude::ToggleButtonExt;
 use client::client::Client;
 use gtk::glib;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, channel};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, sleep};
 use std::time::Duration;
+use chrono::prelude::*;
 
 const MESSAGE_CONNECTION_START: &str = "Connecting to server...";
 const MESSAGE_CONNECTION_FAIL: &str = "Connection failed, please check your settings";
 
-const CONN_RETRIES: usize = 20;
+const CONN_RETRIES: usize = 5;
 
 fn build_ui(application: &gtk::Application) {
     let glade_src = include_str!("ui_mqtt.ui");
@@ -67,12 +66,19 @@ fn build_ui(application: &gtk::Application) {
         .expect("Couldn't get subscription_button");
 
     // send client message from rx through channel tx
-    let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-    let sender = Arc::new(Mutex::new(sender));
+    let (sender_buffer_messages, receiver_buffer_messages) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    let sender = Arc::new(Mutex::new(sender_buffer_messages));
+
+    // send messages to handle buffer messages for widget
+    let (sender_from_client, receiver_from_client) = channel::<String>();
+    let receiver_from_client = Arc::new(Mutex::new(receiver_from_client));
 
     // creating mqtt client
     let mut client = Client::new();
-    client.set_keepalive_interval(120); // set keepalive interval to 2 minutes
+    client.set_keepalive_interval(20); // set keepalive interval to 2 minutes
+
+    // if clean_session is set then the aplication will clean the session for the client
+    let clean_session: CheckButton = builder.object("clean_session").expect(" Couldnt clean_session");
 
     // wrapping shared resources for thread safety
     let client = Arc::new(Mutex::new(client));
@@ -87,6 +93,7 @@ fn build_ui(application: &gtk::Application) {
         let sender = sender.clone();
         let window = window.clone();
         let application = application.clone();
+        let receiver_from_client = receiver_from_client.clone();
         // got to another window on connect_button click
         connect_button.connect_clicked(move |_| {
             let window = window.lock().unwrap();
@@ -145,6 +152,7 @@ fn build_ui(application: &gtk::Application) {
                 port.clone(),
                 username.clone(),
                 password.clone(),
+                clean_session.is_active(),
             ) {
                 Ok(rx_out) => {
                     println!("Connected to server");
@@ -181,6 +189,7 @@ fn build_ui(application: &gtk::Application) {
                 }
                 Err(e) => {
                     println!("Connection failed: {}", e);
+                    drop(client);
                     connect_text.show();
                     connect_text.set_text(MESSAGE_CONNECTION_FAIL);
                     window.show();
@@ -194,10 +203,10 @@ fn build_ui(application: &gtk::Application) {
                     break;
                 }
                 if i > CONN_RETRIES {
-                    // println!("--> Not connected to server");
                     // print something as error on gui
                     connect_spinner.stop();
                     connect_text.set_text(MESSAGE_CONNECTION_FAIL);
+                    client.disconnect();
                     break;
                 }
                 window.show();
@@ -214,6 +223,7 @@ fn build_ui(application: &gtk::Application) {
                     .expect("Couldn't get main_window");
 
                 let sender = sender.clone();
+                let receiver_from_client = receiver_from_client.clone();
                 thread::Builder::new()
                     .name("thread_receiver_messages".to_string())
                     .spawn(move || {
@@ -230,25 +240,60 @@ fn build_ui(application: &gtk::Application) {
                                     break;
                                 }
                             }
+
+                            match receiver_from_client.lock().unwrap().try_recv() {
+                                Ok(message) => {
+                                    if message == "buffer_clear" {
+                                        println!("Clearing buffer on text message widget");
+                                        let _ = _sender.send(Message::ClearBuffer());
+                                    }
+                                }
+                                Err(_e) => {
+                                }
+                            }
+
                             // Sending fails if the receiver is closed
                         }
                     })
                     .expect("Couldn't create thread_receiver_messages");
+
+                // Clear subscribed topics when clean session is true
+                match builder.object::<Box>("subscribe_list_box") {
+                    Some(subscribe_list_box) => {
+                        if clean_session.is_active() {
+                            println!("Clean session is active, removing old subscribed topics");
+                            subscribe_list_box.foreach(|child| {
+                                subscribe_list_box.remove(child);
+                            });
+                        }
+                    }
+                    None => {
+                        print!("Couldn't get subscribe_list_box");
+                        // window widget subscribe_list_box is not created yet
+                    }
+                }
+    
                 window_connection.set_application(Some(&*application));
                 window_connection.show();
             }
         });
     }
 
-    // Window Buffer updated
-    let buffer = text_view.buffer().unwrap();
-    let mut iter = buffer.end_iter();
-
-    receiver.attach(None, move |msg| {
+    
+    // receiver for buffer messages events
+    receiver_buffer_messages.attach(None, move |msg| {
+        // Window Buffer updated
+        let buffer = text_view.buffer().unwrap();
+        let mut iter = buffer.end_iter();
         match msg {
             Message::UpdateBuffer(text) => {
-                buffer.insert(&mut iter, &text);
+                buffer.insert(&mut iter, 
+                    format!("{} {}",Utc::now().to_rfc3339(), text).as_str()
+            );
                 buffer.insert(&mut iter, "\n");
+            }
+            Message::ClearBuffer() => {
+                buffer.delete(&mut buffer.start_iter(), &mut buffer.end_iter());
             }
         }
         // Returning false here would close the receiver
@@ -349,12 +394,16 @@ fn build_ui(application: &gtk::Application) {
                 .expect("Couldn't get main_window");
             client.disconnect();
             window_connection.hide();
+
             let connect_text: gtk::Label = builder
                 .object("connect_text")
                 .expect("Couldn't get connect_text");
             connect_text.set_text("");
             if !client.is_connected() {
                 connect_text.set_text("Disconnected from server");
+                // send clear buffer message to handler of buffer thread
+                sender_from_client.send("buffer_clear".to_string()).unwrap();
+
             }
             // set to empty for text entry
             let username_entry: gtk::Entry = builder
@@ -366,9 +415,28 @@ fn build_ui(application: &gtk::Application) {
             let credentials_checkbox: gtk::CheckButton = builder
                 .object("check_connect_secured")
                 .expect("Couldn't get credentials_checkbox");
+            let topic_entry: gtk::Entry = builder
+                .object("topic_entry")
+                .expect("Couldn't get topic_entry");
+            let retain_check: gtk::CheckButton = builder
+                .object("retain_check")
+                .expect("Couldn't get retain_check");
+            let message_publish: gtk::Entry = builder
+                .object("message_publish")
+                .expect("Couldn't get message_publish");
+            let subscription_entry: Entry = builder
+                .object("subscription_entry")
+                .expect("Couldn't get subscription_entry");
+
+            
             username_entry.set_text("");
             password_entry.set_text("");
             credentials_checkbox.set_active(false);
+            topic_entry.set_text("");
+            message_publish.set_text("");
+            retain_check.set_active(false);
+            subscription_entry.set_text("");
+            
         });
     }
 }
@@ -376,6 +444,7 @@ fn build_ui(application: &gtk::Application) {
 // Messages enum for receiver thread for the connected screen messages section
 enum Message {
     UpdateBuffer(String),
+    ClearBuffer(),
 }
 
 fn main() {
