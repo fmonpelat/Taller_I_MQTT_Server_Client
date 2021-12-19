@@ -145,14 +145,14 @@ fn build_ui(application: &gtk::Application) {
                 let will_message_entry: gtk::Entry = builder
                     .object("will_message_entry")
                     .expect("Couldn't get will_message_entry");
-                    will_topic = will_topic_entry.text().to_string();
+                will_topic = will_topic_entry.text().to_string();
                 will_message = will_message_entry.text().to_string();
                 println!("will_topic: {}", will_topic);
                 println!("will_message: {}", will_message);
             } else {
                 // connect client without last will testament
-                will_topic = ' '.to_string();
-                will_message = ' '.to_string();
+                will_topic = "".to_string();
+                will_message = "".to_string();
             }
 
             let credentials_needed = credentials_checkbox.is_active();
@@ -179,8 +179,8 @@ fn build_ui(application: &gtk::Application) {
                 println!("password: {}", password);
             } else {
                 // connect client without credentials
-                username = ' '.to_string();
-                password = ' '.to_string();
+                username = "".to_string();
+                password = "".to_string();
             }
             // connect client
             connect_spinner.start();
@@ -193,6 +193,8 @@ fn build_ui(application: &gtk::Application) {
                 username.clone(),
                 password.clone(),
                 clean_session.is_active(),
+                will_topic.clone(),
+                will_message.clone(),
             ) {
                 Ok(rx_out) => {
                     println!("Connected to server");
