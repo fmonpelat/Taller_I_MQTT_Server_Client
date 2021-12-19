@@ -38,6 +38,23 @@ fn build_ui(application: &gtk::Application) {
         }
     });
 
+    // if check_last_will is set, show last will fields
+    let last_will_grid: Grid = builder
+        .object("last_will_grid")
+        .expect("Couldn't get credential_grid");
+    let last_will_checkbox: CheckButton = builder
+        .object("check_last_will")
+        .expect("Couldn't get credentials_checkbox");
+        last_will_grid.hide();
+
+    last_will_checkbox.connect_toggled(move |last_will_checkbox| {
+        if last_will_checkbox.is_active() {
+            last_will_grid.show();
+        } else {
+            last_will_grid.hide();
+        }
+    });
+
     let connect_text: gtk::Label = builder
         .object("connect_text")
         .expect("Couldn't get connect_text");
@@ -114,6 +131,29 @@ fn build_ui(application: &gtk::Application) {
             let credentials_checkbox: gtk::CheckButton = builder
                 .object("check_connect_secured")
                 .expect("Couldn't get credentials_checkbox");
+
+            let last_will_checkbox: gtk::CheckButton = builder.object("check_last_will").expect("Couldn't get check_last_will");
+            let last_will_needed = last_will_checkbox.is_active();
+
+            let will_topic: String;
+            let will_message: String;
+            if last_will_needed {
+                // get will topic and will message
+                let will_topic_entry: gtk::Entry = builder
+                    .object("will_topic_entry")
+                    .expect("Couldn't will_topic_entry");
+                let will_message_entry: gtk::Entry = builder
+                    .object("will_message_entry")
+                    .expect("Couldn't get will_message_entry");
+                    will_topic = will_topic_entry.text().to_string();
+                will_message = will_message_entry.text().to_string();
+                println!("will_topic: {}", will_topic);
+                println!("will_message: {}", will_message);
+            } else {
+                // connect client without last will testament
+                will_topic = ' '.to_string();
+                will_message = ' '.to_string();
+            }
 
             let credentials_needed = credentials_checkbox.is_active();
 
@@ -427,6 +467,15 @@ fn build_ui(application: &gtk::Application) {
             let subscription_entry: Entry = builder
                 .object("subscription_entry")
                 .expect("Couldn't get subscription_entry");
+            let last_will_checkbox: gtk::CheckButton = builder
+                .object("check_last_will")
+                .expect("Couldn't get check_last_will");
+            let will_topic_entry: gtk::Entry = builder
+                .object("will_topic_entry")
+                .expect("Couldn't will_topic_entry");
+            let will_message_entry: gtk::Entry = builder
+                .object("will_message_entry")
+                .expect("Couldn't get will_message_entry");
 
             
             username_entry.set_text("");
@@ -436,6 +485,9 @@ fn build_ui(application: &gtk::Application) {
             message_publish.set_text("");
             retain_check.set_active(false);
             subscription_entry.set_text("");
+            last_will_checkbox.set_active(false);
+            will_topic_entry.set_text("");
+            will_message_entry.set_text("");
             
         });
     }
