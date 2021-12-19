@@ -8,8 +8,8 @@ Tabla de contenidos
 
 <!--ts-->
    * [Integrantes](#integrantes)
-   * [Objetivo del trabajo práctico](#objetivo-del-trabajo-practico)
-   * [Comandos de ejecución](#comandos-de-ejecucion)
+   * [Objetivo del trabajo práctico](#objetivo-del-trabajo-práctico)
+   * [Comandos de ejecución](#comandos-de-ejecución)
       * [Iniciando el servidor](#iniciando-el-servidor)
       * [Iniciando el cliente](#iniciando-el-cliente)
 
@@ -19,7 +19,7 @@ Tabla de contenidos
       * [Subscriptions](#subscriptions)
       * [Messages](#messages)
 
-   * [Conexión del servidor o Broker](#conexion-del-servidor-o-broker)
+   * [Conexión del servidor o Broker](#conexión-del-servidor-o-broker)
 <!--te-->
 
 ### Integrantes
