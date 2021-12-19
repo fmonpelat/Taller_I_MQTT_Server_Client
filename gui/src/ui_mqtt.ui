@@ -528,6 +528,7 @@
                 <property name="can-focus">True</property>
                 <property name="margin-top">11</property>
                 <property name="margin-bottom">10</property>
+                <property name="expanded">True</property>
                 <property name="spacing">3</property>
                 <child>
                   <object class="GtkBox" id="subscription_box">
