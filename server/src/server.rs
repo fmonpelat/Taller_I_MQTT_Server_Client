@@ -505,7 +505,7 @@ impl Server {
                     let msg_server: Vec<String> = vec![
                         "publish".to_string(),
                         0.to_string(),
-                        control_flags::QOS0.to_string(),
+                        1.to_string(),
                         0.to_string(),
                         will_tuple.0.clone(),
                         will_tuple.1.clone(),
