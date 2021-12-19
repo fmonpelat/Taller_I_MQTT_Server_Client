@@ -531,6 +531,18 @@ impl Server {
                     .unwrap()
                     .remove(&peer_addr.ip().to_string());
 
+                // clear last will from hash_server_connections
+                hash_server_connections
+                    .lock()
+                    .unwrap()
+                    .entry(client_id.to_string())
+                    .and_modify(|e| {
+                        let will_tuple = &mut e.1;
+                        will_tuple.0 = "".to_string();
+                        will_tuple.1 = "".to_string();
+                    });
+
+
                 match stream.shutdown(Shutdown::Both) {
                     Ok(_) => {
                         logger.debug(format!(
