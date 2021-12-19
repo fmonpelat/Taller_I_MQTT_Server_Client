@@ -105,8 +105,10 @@ A continuación se explica en profundidad cada parámetro:
             Nota: Debido a un recorte del scope del trabajo práctico, los Wilcards no fueron implementados. 
 
 * **QoS:** o Calidad de Servicio que afecta directamente la conexión y la seguridad que se brinda para el envío de mensajes. Existen tres tipos de QoS pero por consideraciones del trabajo práctico, los que se pueden configurar son los siguientes:
-        1. **QoS 0:** «At most once«, esta QoS asegura que se entregará el mensaje «a lo sumo, una vez», por lo que existe la posibilidad de que el mensaje no sea entregado. Es la QoS más ligera para la red y la que menor seguridad brinda.
-        2. **QoS 1:** «At least once«, esta QoS asegura que el mensaje será entregado «como mínimo, una vez», esto quiere decir que pueden producirse duplicados del mensaje. Cuando el mensaje se publica, entonces el cliente espera el PUBACK (acuse de recibido) desde el broker.
+
+  - **QoS 0:** «At most once«, esta QoS asegura que se entregará el mensaje «a lo sumo, una vez», por lo que existe la posibilidad de que el mensaje no sea entregado. Es la QoS más ligera para la red y la que menor seguridad brinda.
+
+  - **QoS 1:** «At least once«, esta QoS asegura que el mensaje será entregado «como mínimo, una vez», esto quiere decir que pueden producirse duplicados del mensaje. Cuando el mensaje se publica, entonces el cliente espera el PUBACK (acuse de recibido) desde el broker.
     
 * **Retain:** brinda la posibilidad de almacenar el último mensaje publicado a un topic específico y cuando un nuevo subscriber se conecte, este reciba el último mensaje enviado a ese topic.
 
