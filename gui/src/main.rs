@@ -1,12 +1,12 @@
-use gtk::prelude::*;
-use gtk::{ApplicationWindow, Box, Builder, Button, CheckButton, Entry, Grid, TextView};
+use chrono::prelude::*;
 use client::client::Client;
 use gtk::glib;
-use std::sync::mpsc::{Receiver, channel};
+use gtk::prelude::*;
+use gtk::{ApplicationWindow, Box, Builder, Button, CheckButton, Entry, Grid, TextView};
+use std::sync::mpsc::{channel, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, sleep};
 use std::time::Duration;
-use chrono::prelude::*;
 
 const MESSAGE_CONNECTION_START: &str = "Connecting to server...";
 const MESSAGE_CONNECTION_FAIL: &str = "Connection failed, please check your settings";
@@ -38,6 +38,23 @@ fn build_ui(application: &gtk::Application) {
         }
     });
 
+    // if check_last_will is set, show last will fields
+    let last_will_grid: Grid = builder
+        .object("last_will_grid")
+        .expect("Couldn't get credential_grid");
+    let last_will_checkbox: CheckButton = builder
+        .object("check_last_will")
+        .expect("Couldn't get credentials_checkbox");
+    last_will_grid.hide();
+
+    last_will_checkbox.connect_toggled(move |last_will_checkbox| {
+        if last_will_checkbox.is_active() {
+            last_will_grid.show();
+        } else {
+            last_will_grid.hide();
+        }
+    });
+
     let connect_text: gtk::Label = builder
         .object("connect_text")
         .expect("Couldn't get connect_text");
@@ -66,7 +83,8 @@ fn build_ui(application: &gtk::Application) {
         .expect("Couldn't get subscription_button");
 
     // send client message from rx through channel tx
-    let (sender_buffer_messages, receiver_buffer_messages) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    let (sender_buffer_messages, receiver_buffer_messages) =
+        glib::MainContext::channel(glib::PRIORITY_DEFAULT);
     let sender = Arc::new(Mutex::new(sender_buffer_messages));
 
     // send messages to handle buffer messages for widget
@@ -78,7 +96,9 @@ fn build_ui(application: &gtk::Application) {
     client.set_keepalive_interval(20); // set keepalive interval to 2 minutes
 
     // if clean_session is set then the aplication will clean the session for the client
-    let clean_session: CheckButton = builder.object("clean_session").expect(" Couldnt clean_session");
+    let clean_session: CheckButton = builder
+        .object("clean_session")
+        .expect(" Couldnt clean_session");
 
     // wrapping shared resources for thread safety
     let client = Arc::new(Mutex::new(client));
@@ -115,6 +135,31 @@ fn build_ui(application: &gtk::Application) {
                 .object("check_connect_secured")
                 .expect("Couldn't get credentials_checkbox");
 
+            let last_will_checkbox: gtk::CheckButton = builder
+                .object("check_last_will")
+                .expect("Couldn't get check_last_will");
+            let last_will_needed = last_will_checkbox.is_active();
+
+            let will_topic: String;
+            let will_message: String;
+            if last_will_needed {
+                // get will topic and will message
+                let will_topic_entry: gtk::Entry = builder
+                    .object("will_topic_entry")
+                    .expect("Couldn't will_topic_entry");
+                let will_message_entry: gtk::Entry = builder
+                    .object("will_message_entry")
+                    .expect("Couldn't get will_message_entry");
+                will_topic = will_topic_entry.text().to_string();
+                will_message = will_message_entry.text().to_string();
+                println!("will_topic: {}", will_topic);
+                println!("will_message: {}", will_message);
+            } else {
+                // connect client without last will testament
+                will_topic = "".to_string();
+                will_message = "".to_string();
+            }
+
             let credentials_needed = credentials_checkbox.is_active();
 
             let connect_spinner: gtk::Spinner = builder
@@ -139,8 +184,8 @@ fn build_ui(application: &gtk::Application) {
                 println!("password: {}", password);
             } else {
                 // connect client without credentials
-                username = ' '.to_string();
-                password = ' '.to_string();
+                username = "".to_string();
+                password = "".to_string();
             }
             // connect client
             connect_spinner.start();
@@ -153,6 +198,8 @@ fn build_ui(application: &gtk::Application) {
                 username.clone(),
                 password.clone(),
                 clean_session.is_active(),
+                will_topic.clone(),
+                will_message.clone(),
             ) {
                 Ok(rx_out) => {
                     println!("Connected to server");
@@ -248,8 +295,7 @@ fn build_ui(application: &gtk::Application) {
                                         let _ = _sender.send(Message::ClearBuffer());
                                     }
                                 }
-                                Err(_e) => {
-                                }
+                                Err(_e) => {}
                             }
 
                             // Sending fails if the receiver is closed
@@ -272,14 +318,13 @@ fn build_ui(application: &gtk::Application) {
                         // window widget subscribe_list_box is not created yet
                     }
                 }
-    
+
                 window_connection.set_application(Some(&*application));
                 window_connection.show();
             }
         });
     }
 
-    
     // receiver for buffer messages events
     receiver_buffer_messages.attach(None, move |msg| {
         // Window Buffer updated
@@ -287,9 +332,10 @@ fn build_ui(application: &gtk::Application) {
         let mut iter = buffer.end_iter();
         match msg {
             Message::UpdateBuffer(text) => {
-                buffer.insert(&mut iter, 
-                    format!("{} {}",Utc::now().to_rfc3339(), text).as_str()
-            );
+                buffer.insert(
+                    &mut iter,
+                    format!("{} {}", Utc::now().to_rfc3339(), text).as_str(),
+                );
                 buffer.insert(&mut iter, "\n");
             }
             Message::ClearBuffer() => {
@@ -403,7 +449,6 @@ fn build_ui(application: &gtk::Application) {
                 connect_text.set_text("Disconnected from server");
                 // send clear buffer message to handler of buffer thread
                 sender_from_client.send("buffer_clear".to_string()).unwrap();
-
             }
             // set to empty for text entry
             let username_entry: gtk::Entry = builder
@@ -427,8 +472,16 @@ fn build_ui(application: &gtk::Application) {
             let subscription_entry: Entry = builder
                 .object("subscription_entry")
                 .expect("Couldn't get subscription_entry");
+            let last_will_checkbox: gtk::CheckButton = builder
+                .object("check_last_will")
+                .expect("Couldn't get check_last_will");
+            let will_topic_entry: gtk::Entry = builder
+                .object("will_topic_entry")
+                .expect("Couldn't will_topic_entry");
+            let will_message_entry: gtk::Entry = builder
+                .object("will_message_entry")
+                .expect("Couldn't get will_message_entry");
 
-            
             username_entry.set_text("");
             password_entry.set_text("");
             credentials_checkbox.set_active(false);
@@ -436,7 +489,9 @@ fn build_ui(application: &gtk::Application) {
             message_publish.set_text("");
             retain_check.set_active(false);
             subscription_entry.set_text("");
-            
+            last_will_checkbox.set_active(false);
+            will_topic_entry.set_text("");
+            will_message_entry.set_text("");
         });
     }
 }

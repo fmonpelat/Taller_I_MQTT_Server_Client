@@ -638,6 +638,8 @@ pub trait ClientPacket {
         &self,
         client_identifier: String,
         clean_session: bool,
+        will_topic: String,
+        will_message: String,
     ) -> Packet<VariableHeader, Payload>;
     fn connect_with_credentials(
         &self,
@@ -645,6 +647,8 @@ pub trait ClientPacket {
         username: String,
         password: String,
         clean_session: bool,
+        will_topic: String,
+        will_message: String,
     ) -> Packet<VariableHeader, Payload>;
     fn disconnect(&self) -> Packet<VariableHeader, Payload>;
     fn pingreq(&self) -> Packet<VariableHeader, Payload>;
@@ -675,17 +679,21 @@ impl<T, P> ClientPacket for Packet<T, P> {
     fn connect_with_credentials(
         &self,
         client_identifier: String,
-        username: String,
+        user_name: String,
         password: String,
         clean_session: bool,
+        will_topic: String,
+        will_message: String,
     ) -> Packet<VariableHeader, Payload> {
         let payload = payload_packet::Payload {
             client_identifier: client_identifier.clone(),
-            user_name: username,
+            user_name,
             password,
+            will_topic: will_topic.clone(),
+            will_message: will_message.clone(),
             ..Default::default()
         };
-        let mut packet = self.connect(client_identifier, clean_session);
+        let mut packet = self.connect(client_identifier, clean_session, will_topic, will_message);
         packet.payload = payload;
         packet
     }
@@ -695,6 +703,8 @@ impl<T, P> ClientPacket for Packet<T, P> {
         &self,
         client_identifier: String,
         clean_session: bool,
+        will_topic: String,
+        will_message: String,
     ) -> Packet<VariableHeader, Payload> {
         let header = Header {
             control_type: control_type::CONNECT,    // 0x10
@@ -714,6 +724,8 @@ impl<T, P> ClientPacket for Packet<T, P> {
         };
         let payload = Payload {
             client_identifier,
+            will_topic,
+            will_message,
             ..Payload::default()
         };
 
@@ -1156,7 +1168,7 @@ mod tests {
             // let connect_head_stub = vec![0x10, 18, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0];
             let client_identifier = String::from("testId");
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.connect(client_identifier, true);
+            let packet = packet.connect(client_identifier, true,"".to_string(), "".to_string());
             let mut readed: usize = 0;
             let value = packet.value();
             let remaining_len = Packet::<VariableHeader, Payload>::get_packet_length(
@@ -1171,7 +1183,7 @@ mod tests {
         fn test_unvalue_variableheader_payload() {
             let client_identifier = String::from("testId");
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.connect(client_identifier, true);
+            let packet = packet.connect(client_identifier, true, "".to_string(), "".to_string());
             let value = packet.value();
             // println!("packet bytes: {:?}", value);
             let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(value.clone());
@@ -1201,7 +1213,7 @@ mod tests {
                 )
                 .collect();
             let packet = Packet::<VariableHeader, Payload>::new();
-            let packet = packet.connect(client_identifier, true);
+            let packet = packet.connect(client_identifier, true, "".to_string(), "".to_string());
             let value = packet.value();
             // println!("value connect: {:?}", value);
             // println!("connect stub: {:?}", connect_stub);

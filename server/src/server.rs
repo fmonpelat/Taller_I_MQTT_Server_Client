@@ -19,9 +19,9 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::thread::{self};
 use std::time::Duration;
-
+type LastWill = (String, String);
 type HashPersistanceConnections = HashMap<String, JoinHandle<()>>; // la clave es el ip address
-type HashServerConnections = HashMap<String, HandleClientConnections>; // la clave es el client_id de mqtt
+type HashServerConnections = HashMap<String, (HandleClientConnections, LastWill)>; // la clave es el client_id de mqtt
 type HashTopics = HashMap<String, (Vec<(String, Sender<Vec<u8>>)>, String)>; // tuple value (vec of (client_id, tx senders), message of retain)
 type HashCredentials = HashMap<String, String>;
 #[derive(Clone)]
@@ -220,17 +220,21 @@ impl Server {
                     let _handle = Server::handle_client(
                         peer.to_string(),
                         stream,
-                        logger,
+                        logger.clone(),
                         this.hash_server_connections.clone(),
                         this.hash_persistance_connections.clone(),
                         this.hash_credentials.clone(),
                         tx.clone(),
                     );
-                    // TODO: verificar si _handle dio error
+                    if let Err(e) = _handle {
+                        logger.error(format!("Error: {}", e));
+                        break;
+                    }
+                    // Updating hash_persistance_connections with the JoinHandle of the clients thread
                     self.hash_persistance_connections
                         .lock()
                         .unwrap()
-                        .insert(peer.ip().to_string(), _handle.unwrap());
+                        .insert(peer.to_string(), _handle.unwrap());
                 }
                 Err(e) => {
                     /* connection failed */
@@ -329,6 +333,7 @@ impl Server {
                     match old_client_connection {
                         Some(old_client_connection) => {
                             // setting old channel to new channel
+                            let old_client_connection = &old_client_connection.0;
                             client_connections.tx = old_client_connection.tx.clone();
                             client_connections.rx = old_client_connection.rx.clone();
                             logger.debug(format!(
@@ -385,13 +390,41 @@ impl Server {
 
                 let unvalued_packet = Packet::<VariableHeader, Payload>::unvalue(buff);
                 let client_identifier: String = unvalued_packet.payload.client_identifier;
-                *client_id = client_identifier;
+                let will_topic: String = unvalued_packet.payload.will_topic;
+                let will_message: String = unvalued_packet.payload.will_message;
+                *client_id = client_identifier.clone();
 
-                // TODO: check retain if we need to persist the client_id
-                hash_server_connections
+                // check if it has Last will statement and update hash_server_connections
+                if will_topic.is_empty() {
+                    logger.debug("No Last will statement".to_string());
+
+                    hash_server_connections
                     .lock()
                     .unwrap()
-                    .insert(client_id.to_string(), client_connections.clone());
+                    .insert(
+                        client_id.to_string(), 
+                        (client_connections.clone(), ("".to_string(), "".to_string())),
+                    );
+                } else {
+                    logger.debug(format!(
+                        "Last will statement topic: {} from client ID: {}",
+                        will_topic,
+                        client_identifier.clone()
+                    ));
+                    // TODO update last will statement on hash_server_connections
+                    hash_server_connections
+                        .lock()
+                        .unwrap()
+                        .entry(client_identifier.clone())
+                        .and_modify(|e| {
+                            let will_tuple = &mut e.1;
+                            will_tuple.0 = will_topic.clone();
+                            will_tuple.1 = will_message.clone();
+                        })
+                        .or_insert(
+                            (client_connections.clone(),(will_topic, will_message))
+                        );
+                }                
 
                 let packet = Packet::<VariableHeader, Payload>::new();
                 let packet =
@@ -454,10 +487,61 @@ impl Server {
                 logger.debug("Disconnect packet received".to_string());
                 logger.info(format!("Peer {:?} will be disconnected ", peer_addr));
 
+                // Send Last will if it has been set on hash_server_connections tuple value
+                
+                let will_tuple = hash_server_connections
+                    .lock()
+                    .unwrap()
+                    .get(&client_id.to_string())
+                    .unwrap().1.clone();
+                
+                // if last will topic is not empty send last will to subscribed clients with publish
+                if !will_tuple.0.is_empty() {
+                    logger.debug(format!(
+                        "Last will statement topic: {} from client ID: {}",
+                        will_tuple.0,
+                        client_id.clone()
+                    ));
+                    let msg_server: Vec<String> = vec![
+                        "publish".to_string(),
+                        0.to_string(),
+                        1.to_string(),
+                        0.to_string(),
+                        will_tuple.0.clone(),
+                        will_tuple.1.clone(),
+                    ];
+                    match tx_server.send(msg_server) {
+                        Ok(_) => {
+                            logger.debug(format!(
+                                "Message sent to server to process publish for client last will: {}",
+                                client_id
+                            ));
+                        }
+                        Err(e) => {
+                            logger.debug(format!(
+                                "Error sending message to server to process publish from client las will: {} error: {}",
+                                client_id ,e
+                            ));
+                        }
+                    };
+                }
+
                 hash_persistance_connections
                     .lock()
                     .unwrap()
                     .remove(&peer_addr.ip().to_string());
+
+                // clear last will from hash_server_connections
+                hash_server_connections
+                    .lock()
+                    .unwrap()
+                    .entry(client_id.to_string())
+                    .and_modify(|e| {
+                        let will_tuple = &mut e.1;
+                        will_tuple.0 = "".to_string();
+                        will_tuple.1 = "".to_string();
+                    });
+
 
                 match stream.shutdown(Shutdown::Both) {
                     Ok(_) => {
@@ -468,7 +552,6 @@ impl Server {
                     }
                     Err(_e) => {}
                 }
-                // TODO Check if need to clean hash persistance connection as well
             }
 
             control_type::SUBSCRIBE => {
@@ -703,6 +786,7 @@ impl Server {
                                         .unwrap()
                                         .get(client_id)
                                         .unwrap()
+                                        .0
                                         .tx
                                         .clone();
                                     let tx = &*value.lock().unwrap();

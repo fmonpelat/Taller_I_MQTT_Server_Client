@@ -27,11 +27,17 @@ fn main() {
                         user_input.get(3).and_then(|v| v.parse().ok());
                     let password_str: Option<String> =
                         user_input.get(4).and_then(|v| v.parse().ok());
+                    let will_topic_str: Option<String> =
+                        user_input.get(5).and_then(|v| v.parse().ok());
+                    let will_message_str: Option<String> =
+                        user_input.get(6).and_then(|v| v.parse().ok());
 
                     let host: String;
                     let port: String;
                     let mut username: String = String::new();
                     let mut password: String = String::new();
+                    let mut will_topic: String = String::new();
+                    let mut will_message: String = String::new();
 
                     match host_str {
                         Some(_) => {
@@ -67,6 +73,20 @@ fn main() {
                         None => println!("Non-existent password value"),
                     }
 
+                    match will_topic_str {
+                        Some(_) => {
+                            will_topic = parser_str(user_input[5].to_string());
+                        }
+                        None => println!("Non-existent will_topic value"),
+                    }
+
+                    match will_message_str {
+                        Some(_) => {
+                            will_message = parser_str(user_input[6].to_string());
+                        }
+                        None => println!("Non-existent will_message value"),
+                    }
+
                     if !client.is_connected() {
                         match client.connect(
                             host.clone(),
@@ -74,6 +94,8 @@ fn main() {
                             username.clone(),
                             password.clone(),
                             true,
+                            will_topic.clone(),
+                            will_message.clone(),
                         ) {
                             Ok(_) => {
                                 println!(
@@ -255,6 +277,8 @@ fn main() {
                                 "".to_string(),
                                 "".to_string(),
                                 true,
+                                "".to_string(),
+                                "".to_string(),
                             )
                             .expect("Error connecting");
                         let client_identifier = client.get_id_client();
