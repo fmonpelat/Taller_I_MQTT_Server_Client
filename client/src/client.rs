@@ -309,12 +309,17 @@ impl Client {
                     // read from stream until timeout or disconnect
                     let mut buff = [0_u8; 4098];
                     let mut tpcstream = &*stream_;
-                    tpcstream
-                        .set_read_timeout(Some(Duration::from_millis(30)))
-                        .unwrap();
+                    if let Err(e) = tpcstream.set_read_timeout(Some(Duration::from_millis(30))) {
+                        println!("Failed to set read timeout: {}", e);
+                        Client::disconnect_stream(tx_events_handler.clone());
+                        break;
+                    }
                     match tpcstream.read(&mut buff) {
                         Ok(n) => {
                             if n > 0 {
+                                if buff[0] == 0xf0 { // keepalive server do nothing
+                                    continue;
+                                }
                                 // send message to event handler
                                 tx_events_handler
                                     .lock()
