@@ -171,7 +171,7 @@ impl Server {
                         return Err(e);
                     }
                     keepalive_count = keepalive_retry;
-                    println!("Server keepalive check");
+                    logger.debug(format!("Server client id {} keepalive check", _client_id));
                 } else {
                     keepalive_count -= 1;
                 }
