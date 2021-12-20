@@ -108,11 +108,17 @@ fn build_ui(application: &gtk::Application) {
 
     // Connect Button clicked event
     {
+        #[allow(clippy::redundant_clone)]
         let client = client.clone();
+        #[allow(clippy::redundant_clone)]
         let builder = builder.clone();
+        #[allow(clippy::redundant_clone)]
         let sender = sender.clone();
+        #[allow(clippy::redundant_clone)]
         let window = window.clone();
+        #[allow(clippy::redundant_clone)]
         let application = application.clone();
+        #[allow(clippy::redundant_clone)]
         let receiver_from_client = receiver_from_client.clone();
         // got to another window on connect_button click
         connect_button.connect_clicked(move |_| {
@@ -195,11 +201,11 @@ fn build_ui(application: &gtk::Application) {
             match client.connect(
                 host.clone(),
                 port.clone(),
-                username.clone(),
-                password.clone(),
+                username,
+                password,
                 clean_session.is_active(),
-                will_topic.clone(),
-                will_message.clone(),
+                will_topic,
+                will_message,
             ) {
                 Ok(rx_out) => {
                     println!("Connected to server");
@@ -222,17 +228,10 @@ fn build_ui(application: &gtk::Application) {
                         .expect("Couldn't get credential_connection");
                     client_id_connection
                         .set_text(format!("Client ID: {}", client.get_id_client()).as_str());
-                    server_host_connection
-                        .set_text(format!("Server host: {}", host.clone()).as_str());
-                    server_port_connection
-                        .set_text(format!("Server port: {}", port.clone()).as_str());
-                    if credentials_needed {
-                        credential_connection
-                            .set_text(format!("Credentials: {}", &credentials_needed).as_str());
-                    } else {
-                        credential_connection
-                            .set_text(format!("Credentials: {}", &credentials_needed).as_str());
-                    }
+                    server_host_connection.set_text(format!("Server host: {}", host).as_str());
+                    server_port_connection.set_text(format!("Server port: {}", port).as_str());
+                    credential_connection
+                        .set_text(format!("Credentials: {}", &credentials_needed).as_str());
                 }
                 Err(e) => {
                     println!("Connection failed: {}", e);
@@ -374,14 +373,17 @@ fn build_ui(application: &gtk::Application) {
             let dup = 0;
             let retain = if retain_check.is_active() { 1 } else { 0 };
             let message = message_publish.text().to_string();
-            client.publish(qos, dup, retain, &topic.clone(), &message);
+            client.publish(qos, dup, retain, &topic, &message);
         });
     }
 
     // Subscribe button clicked event
     {
+        #[allow(clippy::redundant_clone)]
         let client_subscription_events = client.clone();
+        #[allow(clippy::redundant_clone)]
         let builder = builder.clone();
+        #[allow(clippy::redundant_clone)]
         let window = window.clone();
 
         subscription_button.connect_clicked(move |_| {
@@ -430,7 +432,9 @@ fn build_ui(application: &gtk::Application) {
 
     // Disconnect button clicked event
     {
+        #[allow(clippy::redundant_clone)]
         let client = client.clone();
+        #[allow(clippy::redundant_clone)]
         let builder = builder.clone();
         disconnect_button.connect_clicked(move |_| {
             let builder = builder.lock().unwrap();

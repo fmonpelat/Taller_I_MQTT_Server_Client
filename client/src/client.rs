@@ -187,6 +187,7 @@ impl Client {
             });
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn connect(
         &mut self,
         host: String,
@@ -218,7 +219,12 @@ impl Client {
                         "No username provided, skipping username/password for client {}",
                         self.client_identifier
                     );
-                    packet = packet.connect(self.client_identifier.clone(), clean_session, will_topic, will_message);
+                    packet = packet.connect(
+                        self.client_identifier.clone(),
+                        clean_session,
+                        will_topic,
+                        will_message,
+                    );
                 } else {
                     println!(
                         "Connecting with credentials for client {}",
@@ -317,7 +323,8 @@ impl Client {
                     match tpcstream.read(&mut buff) {
                         Ok(n) => {
                             if n > 0 {
-                                if buff[0] == 0xf0 { // keepalive server do nothing
+                                if buff[0] == 0xf0 {
+                                    // keepalive server do nothing
                                     continue;
                                 }
                                 // send message to event handler
