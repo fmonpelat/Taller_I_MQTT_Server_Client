@@ -37,6 +37,7 @@
               <object class="GtkExpander" id="connection_section">
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
+                <property name="margin-top">25</property>
                 <property name="margin-bottom">27</property>
                 <child>
                   <object class="GtkBox" id="connection_box">
