@@ -20,7 +20,7 @@ use std::thread::JoinHandle;
 use std::thread::{self};
 use std::time::Duration;
 type LastWill = (String, String);
-type HashPersistanceConnections = HashMap<String, JoinHandle<()>>; // la clave es el ip address
+type HashPersistanceConnections = HashMap<String, (JoinHandle<()>, String)>; // la clave es el ip address contiene como valor (Joinhandle del thread, el client_id)
 type HashServerConnections = HashMap<String, (HandleClientConnections, LastWill)>; // la clave es el client_id de mqtt
 type HashTopics = HashMap<String, (Vec<(String, Sender<Vec<u8>>)>, String)>; // tuple value (vec of (client_id, tx senders), message of retain)
 type HashCredentials = HashMap<String, String>;
@@ -106,8 +106,11 @@ impl Server {
         ) -> Result<()> {
             let mut buff = [0_u8; 1024];
             let mut _client_id = String::new();
+            let keepalive_retry:usize = 300;
+            let mut keepalive_count: usize = keepalive_retry;
             #[allow(unreachable_code)]
             Ok(loop {
+                // this timeout checks when the client is disconnected
                 stream.set_read_timeout(Some(Duration::from_millis(30)))?;
                 if let Ok(_size) = stream.read(&mut buff) {
                     if _size > 0 {
@@ -120,7 +123,6 @@ impl Server {
                                 &mut stream,
                                 logger.clone(),
                                 hash_server_connections.clone(),
-                                hash_persistance_connections.clone(),
                                 hash_credentials.clone(),
                                 &mut client_connections,
                                 tx_server.clone(),
@@ -132,11 +134,18 @@ impl Server {
                                         stream.peer_addr()?,
                                         client_id
                                     ));
+                                    let peer = client_connections.peer.lock().unwrap().clone();
+                                    hash_persistance_connections.lock().unwrap()
+                                    .entry(peer.clone())
+                                    .and_modify(|e| {
+                                        e.1 = client_id.clone();
+                                    });
+
                                     logger.debug("Cleaning buffer".to_string());
                                     buff = [0_u8; 1024];
                                 }
                                 Err(e) => {
-                                    logger.debug(format!("Error: {}", e));
+                                    logger.debug(format!("Error (handle_packet): {}", e));
                                     break; // stopping thread
                                 }
                             }
@@ -147,12 +156,26 @@ impl Server {
                         };
                     };
                 }
-                // TODO, read rx channel of this thread and act like a proxy (write drectly to stream)
+
                 let client_rx = &*client_connections.rx.lock().unwrap();
                 if let Ok(msg) = client_rx.try_recv() {
                     logger.debug("Received message from server through channel".to_string());
                     stream.write_all(&msg)?;
                 }
+
+                // server keepalive check using RESERVED bits of mqtt packet
+                if keepalive_count == 0 {
+                    let msg = vec![0xF0 as u8];
+                    if let Err(e) = stream.write_all(&msg) {
+                        logger.debug(format!("Error (server keepalive failed): {}", e));
+                        return Err(e);
+                    }
+                    keepalive_count = keepalive_retry;
+                    println!("Server keepalive check");
+                } else {
+                    keepalive_count -= 1;
+                }
+                
                 // ends loop returns ok result
             })
         }
@@ -165,6 +188,8 @@ impl Server {
             peer: Arc::new(Mutex::new(peer.to_string())),
         };
 
+        let peer = stream.peer_addr()?;
+
         let handle = thread::Builder::new()
             .name("thread peer: ".to_string() + peer.to_string().as_str())
             .spawn(move || {
@@ -173,17 +198,29 @@ impl Server {
                 match _handle_client_(
                     stream,
                     logger.clone(),
-                    hash_server_connections,
-                    hash_persistance_connections,
+                    hash_server_connections.clone(),
+                    hash_persistance_connections.clone(),
                     hash_credentials,
                     handle_client_connections,
-                    tx_server,
+                    tx_server.clone(),
                 ) {
                     Ok(_) => {
                         logger.debug(format!("Connection with {} closed", peer));
                     }
                     Err(e) => {
-                        logger.debug(format!("Error: {}", e));
+                        logger.debug(format!("Error (_handle_client_): {}", e));
+                        let client_id = 
+                            hash_persistance_connections.lock().unwrap().get(&peer.to_string()).unwrap().1.clone();
+                        Server::send_last_will(
+                            hash_server_connections.clone(),
+                            tx_server.clone(),
+                            client_id,
+                            &logger,
+                        );
+                        hash_persistance_connections
+                            .lock()
+                            .unwrap()
+                            .remove(&peer.to_string());
                     }
                 }
             });
@@ -234,7 +271,7 @@ impl Server {
                     self.hash_persistance_connections
                         .lock()
                         .unwrap()
-                        .insert(peer.to_string(), _handle.unwrap());
+                        .insert(peer.to_string(), (_handle.unwrap(),"".to_string()));
                 }
                 Err(e) => {
                     /* connection failed */
@@ -259,7 +296,6 @@ impl Server {
         stream: &mut TcpStream,
         logger: Arc<Logger>,
         hash_server_connections: Arc<Mutex<HashServerConnections>>,
-        hash_persistance_connections: Arc<Mutex<HashPersistanceConnections>>,
         hash_credentials: Arc<Mutex<HashCredentials>>,
         client_connections: &mut HandleClientConnections,
         tx_server: Sender<Vec<String>>,
@@ -319,7 +355,7 @@ impl Server {
             }
             // End credentials check
 
-            if Server::get_id_persistance_connections(
+            if Server::get_id_server_connections(
                 client_identifier,
                 hash_server_connections.clone(),
             )
@@ -411,7 +447,7 @@ impl Server {
                         will_topic,
                         client_identifier.clone()
                     ));
-                    // TODO update last will statement on hash_server_connections
+                    // update last will statement on hash_server_connections
                     hash_server_connections
                         .lock()
                         .unwrap()
@@ -424,7 +460,7 @@ impl Server {
                         .or_insert(
                             (client_connections.clone(),(will_topic, will_message))
                         );
-                }                
+                }             
 
                 let packet = Packet::<VariableHeader, Payload>::new();
                 let packet =
@@ -483,70 +519,13 @@ impl Server {
             }
 
             control_type::DISCONNECT => {
-                // TODO investigate what kind of action need to take
                 logger.debug("Disconnect packet received".to_string());
                 logger.info(format!("Peer {:?} will be disconnected ", peer_addr));
-
-                // Send Last will if it has been set on hash_server_connections tuple value
-                
-                let will_tuple = hash_server_connections
-                    .lock()
-                    .unwrap()
-                    .get(&client_id.to_string())
-                    .unwrap().1.clone();
-                
-                // if last will topic is not empty send last will to subscribed clients with publish
-                if !will_tuple.0.is_empty() {
-                    logger.debug(format!(
-                        "Last will statement topic: {} from client ID: {}",
-                        will_tuple.0,
-                        client_id.clone()
-                    ));
-                    let msg_server: Vec<String> = vec![
-                        "publish".to_string(),
-                        0.to_string(),
-                        1.to_string(),
-                        0.to_string(),
-                        will_tuple.0.clone(),
-                        will_tuple.1.clone(),
-                    ];
-                    match tx_server.send(msg_server) {
-                        Ok(_) => {
-                            logger.debug(format!(
-                                "Message sent to server to process publish for client last will: {}",
-                                client_id
-                            ));
-                        }
-                        Err(e) => {
-                            logger.debug(format!(
-                                "Error sending message to server to process publish from client las will: {} error: {}",
-                                client_id ,e
-                            ));
-                        }
-                    };
-                }
-
-                hash_persistance_connections
-                    .lock()
-                    .unwrap()
-                    .remove(&peer_addr.ip().to_string());
-
-                // clear last will from hash_server_connections
-                hash_server_connections
-                    .lock()
-                    .unwrap()
-                    .entry(client_id.to_string())
-                    .and_modify(|e| {
-                        let will_tuple = &mut e.1;
-                        will_tuple.0 = "".to_string();
-                        will_tuple.1 = "".to_string();
-                    });
-
 
                 match stream.shutdown(Shutdown::Both) {
                     Ok(_) => {
                         logger.debug(format!(
-                            "Peer {} has been removed from hash server connections",
+                            "Peer {} has been disconnected",
                             peer_addr
                         ));
                     }
@@ -671,12 +650,100 @@ impl Server {
         Ok(client_id.to_string())
     }
 
-    fn get_id_persistance_connections(
-        ip_addr: String,
+    fn send_last_will(
+        hash_server_connections: Arc<Mutex<HashServerConnections>>,
+        tx_server: Sender<Vec<String>>,
+        client_id: String,
+        logger: &Logger,
+    ) {
+        Server::act_on_last_will(
+            hash_server_connections.clone(),
+            tx_server.clone(),
+            client_id.clone(),
+            logger.clone(),
+        );
+        Server::clear_last_will(
+            hash_server_connections.clone(),
+            client_id.clone(),
+        );
+    }
+
+    fn clear_last_will(hash_server_connections: Arc<Mutex<HashServerConnections>>,client_id: String) {
+        // clear last will from hash_server_connections
+        hash_server_connections
+        .lock()
+        .unwrap()
+        .entry(client_id.to_string())
+        .and_modify(|e| {
+            let will_tuple = &mut e.1;
+            will_tuple.0 = "".to_string();
+            will_tuple.1 = "".to_string();
+        });
+    }
+
+    fn act_on_last_will(
+        hash_server_connections: Arc<Mutex<HashServerConnections>>,
+        tx_server: Sender<Vec<String>>,
+        client_id: String,
+        logger: &Logger,
+    ) {
+        let result = hash_server_connections
+            .lock()
+            .unwrap()
+            .get(&client_id.to_string())
+            .and_then(|e| {
+                Some(e.1.clone())
+            });
+        match result {
+            Some(will_tuple) => {
+                // if last will topic is not empty send last will to subscribed clients with publish
+                if !will_tuple.0.is_empty() {
+                    logger.debug(format!(
+                        "Last will statement topic: {} from client ID: {}",
+                        will_tuple.0,
+                        client_id.clone()
+                    ));
+                    let msg_server: Vec<String> = vec![
+                        "publish".to_string(),
+                        0.to_string(),
+                        1.to_string(),
+                        0.to_string(),
+                        will_tuple.0.clone(),
+                        will_tuple.1.clone(),
+                    ];
+                    match tx_server.send(msg_server) {
+                        Ok(_) => {
+                            logger.debug(format!(
+                                "Message sent to server to process publish for client last will: {}",
+                                client_id
+                            ));
+                        }
+                        Err(e) => {
+                            logger.debug(format!(
+                                "Error sending message to server to process publish from client las will: {} error: {}",
+                                client_id ,e
+                            ));
+                        }
+                    };
+                }
+            }
+            None => {
+                logger.debug(format!(
+                    "Client {} has no last will",
+                    client_id
+                ));
+            }
+        }
+        
+        
+    }
+
+    fn get_id_server_connections(
+        client_id: String,
         hash_server_connections: Arc<Mutex<HashServerConnections>>,
     ) -> Result<bool> {
         let hash = hash_server_connections.lock().unwrap();
-        Ok(hash.contains_key(&ip_addr))
+        Ok(hash.contains_key(&client_id))
     }
 
     fn _get_hash_topics(topic: &str, hash_topics: Arc<Mutex<HashTopics>>) -> Result<bool> {
