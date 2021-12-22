@@ -481,7 +481,7 @@ impl Server {
                 let msg_server: Vec<String> = vec![
                     "publish".to_string(),
                     if unvalue.header.get_dup() { 1 } else { 0 }.to_string(),
-                    unvalue.header.get_qos().to_string(),
+                    if unvalue.header.get_qos() == control_flags::QOS0 { 1 } else { 0 }.to_string(),
                     if unvalue.header.get_retain() { 1 } else { 0 }.to_string(),
                     String::from_utf8_lossy(&unvalue.variable_header.topic_name).to_string(),
                     unvalue.payload.message,
