@@ -1,7 +1,7 @@
 # MQTT Rústico - Taller de Programación 1
 
 
-## Equipo - Los Rustmonnaz
+## Equipo:  Los Rustmonnaz
 
 Tabla de contenidos
 =================
@@ -9,7 +9,7 @@ Tabla de contenidos
 <!--ts-->
    * [Integrantes](#integrantes)
    * [Objetivo del trabajo práctico](#objetivo-del-trabajo-práctico)
-   * [Comandos de ejecución](#comandos-de-ejecución)
+   * [Programas](#programas)
       * [Iniciando el servidor](#iniciando-el-servidor)
       * [Iniciando el cliente](#iniciando-el-cliente)
    * [Conexión con el servidor](#conexión-con-el-servidor)
@@ -36,13 +36,13 @@ La especificación de los requerimientos del trabajo práctico se encuentra en e
 
 **Nota:** Dado la cantidad integrantes en el equipo no se implementó la totalidad de los requerimientos del trabajo práctico.
 
-Comandos de ejecución
+Programas
 ======================
 
 Iniciando el servidor
 ---------------------
   
-Para ejecutar el servidor, se debe ir al directorio donde se encuentra el mismo y ejecutar en línea de comandos lo siguiente:
+Para ejecutar el servidor, se debe ir al directorio donde se encuentra el mismo (`./server`) y ejecutar en línea de comandos lo siguiente:
 ```sh
    cargo run server
 ```
@@ -50,17 +50,56 @@ Los parámetros con los que se inicia el servidor se encuentran especificados en
 * **host:** Dirección del servidor.
 * **port:** Puerto en cual el servidor escuchará por solicitudes
 * **logfile:** Path del archivo donde se irán almacenando todos los registros tanto de las solicitudes como de las acciones que se van realizando.
-* **credentials_file:** Path del archivo el cual el servidor levanta los datos de los usuarios que pueden conectarse en forma segura.
+* **credentials_file:** Path del archivo el cual el servidor carga los datos de los usuarios que pueden conectarse de forma segura. 
 
-Iniciando el cliente
+### Credential file
+El archivo Credential file contiene los usuarios y contraseñas en forma de clave valor por ejemplo:
+```
+user1: contraseña
+```
+esta habilitados los comentarios para deshabilitar un usuario del archivo sin borralo usando el caracter `'#'`, por ejemplo si queremos deshabilitar al `user1` o `user2` de conectarse con el server:
+```
+# user1: contraseña
+#user2: contraseña
+```
+
+_________________
+
+Iniciando el cliente CLI
+--------------------
+Para ejecutar el cliente en modo CLI (linea por consola) ir al directorio (`./client`) y y ejecutar en línea de comandos lo siguiente:
+```sh
+  cargo run client
+```
+Una vez ejecutado correctamente el cliente, se abrirá la interfaz para que el cliente pueda conectarse al servidor.
+
+### Comandos
+Para interactuar con el cliente en modo cli, los comandos se deben ingresar por stdin.
+Los comandos habilitados son: 
+
+**Nota:** En mayuscula se especifican los parametros a modificar, todos los comandos se escriben en minusculas:
+#### **<em>connect HOST PORT USER PASSWORD</em>**
+Este comando conecta al cliente con el servidor, es opcional el uso de los placeholder `USER` y `PASSWORD`.
+#### **<em>publish DUP QOS RETAIN TOPIC MESSAGE </em>** 
+Para enviar un mensaje con topic y el mensaje. Valores validos de dup, qos y retain: 0, 1.
+
+#### **<em>subscribe QOS TOPIC</em>**
+Para subscribirse a un topico, valores validos de QOS: 0, 1.
+
+### **<em>disconnect</em>**
+Para desconectarse del servidor de una manera grata.
+
+_________________
+
+Iniciando el GUI
 --------------------
 
 Para ejecutar el cliente se debe ir al directorio del mismo y ejecutar en línea de comandos lo siguiente:
 ```sh
-  cargo run cliente
+  cargo run gui
 ```
 
-Una vez ejecutado correctamente el cliente, se abrirá la interfaz para que el cliente pueda conectarse al servidor.
+Una vez ejecutado correctamente la gui, se abrirá la interfaz para que el cliente pueda conectarse al servidor.
     
 Una vista de la ventana principal para la conexón del cliente es la siguiente:
 ![main_window](/images/main_window.png "Ventana principal")
@@ -68,8 +107,9 @@ Una vista de la ventana principal para la conexón del cliente es la siguiente:
 Los parámetros con los que se debe iniciar el cliente son los siguientes:
 * **Server host:** Dirección del servidor.
 * **Server Port:** Puerto del servidor.
-* **Clean session:** Puede estar activada o desactivada. Para cuando se realiza la conexión con el Clean session activado, si el subscriber pierde la conexión, entonces todos los mensajes que hayan sido publicados a ese topic no van a ser almacenados y cuando el subscriber se reconecta, habrá perdido estos mensajes. Caso contrario, si el Clean session ha sido desactivado, entonces los mensajes serán almacenados y entregados al cliente cuando este se reconecte.
-* **Last will testament:** Servicio que proporciona una forma para que los clientes respondan a desconexiones _ungracefully_ de una manera adecuada. Se se utiliza para notificar a los suscriptores de un cierre inesperado del _publisher_.
+* **Clean session:** Puede estar activada o desactivada. Para cuando se realiza la conexión con la opcion `Clean session` activado, se inicia una sesion nueva.
+
+* **Last will testament:** Utilidad que proporciona una forma para que los clientes respondan a desconexiones _ungracefully_ de una manera adecuada. Se se utiliza para notificar a los suscriptores de un cierre inesperado del _publisher_.
    
    El proceso básico es el siguiente:
 
