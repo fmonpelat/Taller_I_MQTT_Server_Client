@@ -3,8 +3,8 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 pub mod file_loader;
-pub mod logger;
 pub mod http;
+pub mod broker_client;
 
 #[allow(dead_code)]
 pub struct ThreadPool {
