@@ -1,8 +1,8 @@
 use std::io::{BufReader, Read, Result};
-use std::{collections::HashMap, fs::File};
+use std::{collections::HashMap, fs::File };
 
 pub fn get_contents(file_name: &str) -> Result<String> {
-    let file = File::open("../".to_string() + file_name).unwrap_or_else(|_| panic!("File not found: {}", file_name));
+    let file = File::open(file_name).unwrap_or_else(|e| panic!("Error: {}", e));
     let mut buf_reader = BufReader::new(file);
     let mut contents = String::new();
     buf_reader.read_to_string(&mut contents)?;
