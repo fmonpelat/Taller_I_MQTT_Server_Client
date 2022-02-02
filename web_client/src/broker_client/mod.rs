@@ -23,13 +23,16 @@ impl BrokerClient {
       let connected = Arc::new(Mutex::new(false)); // main structure to store connection status
       {
         let host = host.clone();
-        let port = port.to_string();
-        let topic = topic.to_string();
+        let port = port.clone();
+        let topic = topic.clone();
         let connected = connected.clone();
         let messages = messages.clone();
-        let _handler = thread::spawn(move || {
+
+        let _handler = thread::Builder::new()
+        .name("Thread Broker Client".to_string())
+        .spawn(move || {
           let mut client = Client::new();
-          client.set_keepalive_interval(20); // set keepalive interval to 2 minutes
+          client.set_keepalive_interval(20); // set keepalive interval to 20 seconds
           let messages_channel: Arc<Mutex<Receiver<String>>>;
           match client.connect(
               host,
@@ -100,26 +103,12 @@ impl BrokerClient {
     pub fn get_last_messages(&self, count: usize) -> Vec<String> {
       let messages = self.messages.lock().unwrap();
       let mut result = Vec::new();
-      for i in (0..count).rev() {
+      for i in 0..count {
         if i < messages.len() {
-          result.push(messages[i].clone());
+          result.push(messages[messages.len() - i - 1].clone());
         }
       }
       result
     }
 
-    // pub fn wait_for_connection(&self) -> Result<bool, bool> {
-    //   let mut i: usize = 0;
-    //   loop {
-    //       if *(self.connected.lock().unwrap()) {
-    //           break;
-    //       }
-    //       if i > self.conn_retries {
-    //         return Err(false);
-    //       }
-    //       sleep(Duration::from_millis(2000));
-    //       i += 1;
-    //   }
-    //   Ok(true)
-    // }   
 }

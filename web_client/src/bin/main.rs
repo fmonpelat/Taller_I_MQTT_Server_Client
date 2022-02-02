@@ -27,14 +27,14 @@ fn main() {
     let broker_conn_retries: usize = config
         .get("broker_conn_retries")
         .unwrap_or_else(|| &default_broker_conn_retries).parse().unwrap();
+    let default_show_last_x_messages = String::from("10");
+    let show_last_x_messages: usize = config
+        .get("show_last_x_messages")
+        .unwrap_or_else(|| &default_show_last_x_messages).parse().unwrap();
     
 
-
-    // connect to broker client and subscribe to topic
-    let messages: Vec<String>;
     // connects to broker and creates a thread to handle IO messages
     let broker_client = BrokerClient::new(broker_host.clone(), broker_port.clone(), topic.clone(), broker_conn_retries).unwrap_or_else(|e| panic!("Connection to broker failed: {}", e));
-    // let messages: Vec<String> = broker_client.get_last_messages(10); // returns vector of string messages
 
     let broker_client: Arc<Mutex<BrokerClient>> = Arc::new(Mutex::new(broker_client));
 
@@ -45,13 +45,14 @@ fn main() {
     for stream in listener.incoming() {
         let stream = stream.unwrap();
         let broker_client = broker_client.clone();
-        pool.execute(|| {
-            handle_connection(stream, broker_client);
+        let show_last_x_messages = show_last_x_messages.clone();
+        pool.execute(move || {
+            handle_connection(stream, broker_client, show_last_x_messages);
         });
     }
 }
 
-fn handle_connection(mut stream: TcpStream, broker_client: Arc<Mutex<BrokerClient>>) -> () {
+fn handle_connection(mut stream: TcpStream, broker_client: Arc<Mutex<BrokerClient>>, show_last_x_messages: usize ) -> () {
 
     // 1024 bytes is enough for a toy HTTP server
     let mut buffer = [0; 1024];
@@ -62,10 +63,10 @@ fn handle_connection(mut stream: TcpStream, broker_client: Arc<Mutex<BrokerClien
      let request = String::from_utf8_lossy(&buffer[..]);
      let request_line = request.lines().next().unwrap();
 
-    let mut contents = String::new();
+    let contents: String;
     let mut response = String::new();
     match parse_request_line(&request_line) {
-        Ok(request) => {
+        Ok(_request) => {
             // println!("\n{}", request);
             match broker_client.lock() {
                 Ok(client) => {
@@ -74,7 +75,7 @@ fn handle_connection(mut stream: TcpStream, broker_client: Arc<Mutex<BrokerClien
                         contents = fs::read_to_string("src/bin/502.html").unwrap();
                         response = format!("{}{}", "HTTP/1.1 502 Bad Gateway\r\n\r\n", contents);
                     } else {
-                        let messages = client.get_last_messages(10);
+                        let messages = client.get_last_messages(show_last_x_messages);
                         contents = fs::read_to_string("src/bin/index.html").unwrap();
                         let mut all_html_styled_messages = String::new();
                         let messages_placeholder = "<div class=\"messages\">".to_string();
@@ -93,7 +94,7 @@ fn handle_connection(mut stream: TcpStream, broker_client: Arc<Mutex<BrokerClien
             // println!("Response: {}\n", &response);
         }
         Err(_) => {
-            contents = fs::read_to_string("bin/404.html").unwrap();
+            contents = fs::read_to_string("src/bin/404.html").unwrap();
             response = format!("{}{}", "HTTP/1.1 404 NOT FOUND\r\n\r\n", contents);
             println!("Request invalid: {}", &request_line)
         },
