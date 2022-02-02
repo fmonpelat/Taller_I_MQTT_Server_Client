@@ -210,7 +210,6 @@ impl Server {
                         logger.debug(format!("Connection with {} closed", peer));
                     }
                     Err(e) => {
-                        logger.debug(format!("Error (_handle_client_): {}", e));
                         let client_id = hash_persistance_connections
                             .lock()
                             .unwrap()
@@ -218,6 +217,7 @@ impl Server {
                             .unwrap()
                             .1
                             .clone();
+                        logger.debug(format!("Error (_handle_client_): {} for client id: {}", e, client_id));
                         Server::send_last_will(
                             hash_server_connections.clone(),
                             tx_server.clone(),
