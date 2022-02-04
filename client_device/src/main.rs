@@ -3,30 +3,31 @@ use core::time;
 use mqtt_packet::mqtt_packet_service::payload_packet::Payload;
 use mqtt_packet::mqtt_packet_service::variable_header_packet::VariableHeader;
 use mqtt_packet::mqtt_packet_service::{ClientPacket, Packet};
+use rand::distributions::Uniform;
+use rand::Rng;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
-use rand::Rng;
-use rand::distributions:: Uniform;
 
 fn main() {
     let mut client = Client::new();
     println!("######## Connection to localhost ########");
-    client.connect(
-                "localhost".to_string(),
-                "3333".to_string(),
-                "".to_string(),
-                "".to_string(),
-                true,
-                "".to_string(),
-                "".to_string(),
-            )
-            .expect("Error connecting");
+    client
+        .connect(
+            "localhost".to_string(),
+            "3333".to_string(),
+            "".to_string(),
+            "".to_string(),
+            true,
+            "".to_string(),
+            "".to_string(),
+        )
+        .expect("Error connecting");
 
     loop {
         // creating a new default mqtt packet
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
-        
+
         let client_identifier = client.get_id_client();
         println!("--> Trying to connect with client id {}", client_identifier);
         println!("Send connect");
@@ -69,7 +70,7 @@ fn main() {
             client.send(packet.value())
         }
         println!("########## Client will publish in 20 seconds ########");
-        sleep(Duration::new(20, 0));       
+        sleep(Duration::new(20, 0));
     }
 }
 
