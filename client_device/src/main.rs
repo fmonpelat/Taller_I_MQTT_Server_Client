@@ -58,14 +58,15 @@ fn main() {
         host.to_string(),
         port.to_string(),
         topic.to_string(),
-        user.to_string(),
-        password.to_string(),
+        user,
+        password,
         interval_time,
         min_interval_num,
         max_interval_num,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_connection(
     host: String,
     port: String,
@@ -75,15 +76,15 @@ fn handle_connection(
     interval_time: usize,
     min_interval_num: i32,
     max_interval_num: i32,
-) -> () {
+) {
     let mut client = Client::new();
     println!("Connection to the server");
     client
         .connect(
-            host.to_owned(),
-            port.to_owned(),
-            user.to_owned(),
-            password.to_owned(),
+            host,
+            port,
+            user,
+            password,
             true,
             "".to_string(),
             "".to_string(),
@@ -111,7 +112,7 @@ fn handle_connection(
         thread::sleep(time::Duration::from_millis(1000));
         println!("Waiting for connection ... retries: {}/{}", i, conn_retries);
     }
-    
+
     loop {
         // Creating a new default mqtt packet
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
