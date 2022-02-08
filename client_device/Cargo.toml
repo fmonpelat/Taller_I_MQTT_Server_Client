@@ -1,5 +1,5 @@
 [package]
-name = "clientDevice"
+name = "client_device"
 version = "0.1.0"
 edition = "2018"
 
