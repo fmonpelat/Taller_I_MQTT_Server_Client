@@ -18,7 +18,7 @@ pub struct BrokerClient {
 }
 
 impl BrokerClient {
-    pub fn new(host: String, port: String, topic: String, conn_retries: usize) -> Result<BrokerClient, Error> {
+    pub fn new(host: String, port: String, topic: String, conn_retries: usize, user: String, password: String) -> Result<BrokerClient, Error> {
       let messages = Arc::new(Mutex::new(Vec::new())); // main structure to store messages
       let connected = Arc::new(Mutex::new(false)); // main structure to store connection status
       {
@@ -27,6 +27,8 @@ impl BrokerClient {
         let topic = topic.clone();
         let connected = connected.clone();
         let messages = messages.clone();
+        let user = user.clone();
+        let password = password.clone();
 
         let _handler = thread::Builder::new()
         .name("Thread Broker Client".to_string())
@@ -37,8 +39,8 @@ impl BrokerClient {
           match client.connect(
               host,
               port,
-              String::new(),
-              String::new(),
+              user,
+              password,
               true,
               String::new(),
               String::new(),

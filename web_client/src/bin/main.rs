@@ -31,10 +31,22 @@ fn main() {
     let show_last_x_messages: usize = config
         .get("show_last_x_messages")
         .unwrap_or_else(|| &default_show_last_x_messages).parse().unwrap();
+    let default_user = String::from("");
+    let user: String = config
+        .get("user")
+        .unwrap_or_else(|| &default_user)
+        .parse()
+        .unwrap();
+    let default_password = String::from("");
+    let password: String = config
+        .get("password")
+        .unwrap_or_else(|| &default_password)
+        .parse()
+        .unwrap();
     
 
     // connects to broker and creates a thread to handle IO messages
-    let broker_client = BrokerClient::new(broker_host.clone(), broker_port.clone(), topic.clone(), broker_conn_retries).unwrap_or_else(|e| panic!("Connection to broker failed: {}", e));
+    let broker_client = BrokerClient::new(broker_host.clone(), broker_port.clone(), topic.clone(), broker_conn_retries, user, password).unwrap_or_else(|e| panic!("Connection to broker failed: {}", e));
 
     let broker_client: Arc<Mutex<BrokerClient>> = Arc::new(Mutex::new(broker_client));
 
