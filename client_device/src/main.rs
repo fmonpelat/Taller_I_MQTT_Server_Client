@@ -23,6 +23,18 @@ fn main() {
     let topic = config
         .get("topic")
         .unwrap_or_else(|| panic!("Cannot found topic in config"));
+    let default_user = String::from("");
+    let user: String = config
+        .get("user")
+        .unwrap_or_else(|| &default_user)
+        .parse()
+        .unwrap();
+    let default_password = String::from("");
+    let password: String = config
+        .get("password")
+        .unwrap_or_else(|| &default_password)
+        .parse()
+        .unwrap();
     let default_interval_time = String::from("15");
     let interval_time: usize = config
         .get("interval_time")
@@ -46,6 +58,8 @@ fn main() {
         host.to_string(),
         port.to_string(),
         topic.to_string(),
+        user.to_string(),
+        password.to_string(),
         interval_time,
         min_interval_num,
         max_interval_num,
@@ -56,6 +70,8 @@ fn handle_connection(
     host: String,
     port: String,
     topic: String,
+    user: String,
+    password: String,
     interval_time: usize,
     min_interval_num: i32,
     max_interval_num: i32,
@@ -66,39 +82,39 @@ fn handle_connection(
         .connect(
             host.to_owned(),
             port.to_owned(),
-            "".to_string(),
-            "".to_string(),
+            user.to_owned(),
+            password.to_owned(),
             true,
             "".to_string(),
             "".to_string(),
         )
         .expect("Error connecting");
 
+    let client_identifier = client.get_id_client();
+    println!("--> Trying to connect with client id {}", client_identifier);
+    let mut i: usize = 0;
+    let conn_retries = client.get_connect_retries();
+    loop {
+        if i >= conn_retries {
+            // print something as error on loop
+            client.disconnect();
+            panic!("Connection to client failed.");
+        }
+        if client.is_connected() {
+            println!(
+                "<-- Connected to server with client id {}",
+                client_identifier
+            );
+            break;
+        }
+        i += 1;
+        thread::sleep(time::Duration::from_millis(1000));
+        println!("Waiting for connection ... retries: {}/{}", i, conn_retries);
+    }
+    
     loop {
         // Creating a new default mqtt packet
         let packet: Packet<VariableHeader, Payload> = Packet::<VariableHeader, Payload>::new();
-
-        let client_identifier = client.get_id_client();
-        println!("--> Trying to connect with client id {}", client_identifier);
-        let mut i: usize = 0;
-        let conn_retries = client.get_connect_retries();
-        loop {
-            if i >= conn_retries {
-                // print something as error on loop
-                client.disconnect();
-                panic!("Connection to client failed.");
-            }
-            if client.is_connected() {
-                println!(
-                    "<-- Connected to server with client id {}",
-                    client_identifier
-                );
-                break;
-            }
-            i += 1;
-            thread::sleep(time::Duration::from_millis(1000));
-            println!("Waiting for connection ... retries: {}/{}", i, conn_retries);
-        }
 
         if client.is_connected() {
             // Publish to the server
