@@ -1,0 +1,7 @@
+host: localhost
+port: 8888
+topic: test
+broker_host: localhost
+broker_port: 3333
+broker_conn_retries: 15
+show_last_x_messages: 15

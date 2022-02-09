@@ -210,7 +210,6 @@ impl Server {
                         logger.debug(format!("Connection with {} closed", peer));
                     }
                     Err(e) => {
-                        logger.debug(format!("Error (_handle_client_): {}", e));
                         let client_id = hash_persistance_connections
                             .lock()
                             .unwrap()
@@ -218,6 +217,10 @@ impl Server {
                             .unwrap()
                             .1
                             .clone();
+                        logger.debug(format!(
+                            "Error (_handle_client_): {} for client id: {}",
+                            e, client_id
+                        ));
                         Server::send_last_will(
                             hash_server_connections.clone(),
                             tx_server.clone(),
@@ -481,7 +484,12 @@ impl Server {
                 let msg_server: Vec<String> = vec![
                     "publish".to_string(),
                     if unvalue.header.get_dup() { 1 } else { 0 }.to_string(),
-                    if unvalue.header.get_qos() == control_flags::QOS0 { 1 } else { 0 }.to_string(),
+                    if unvalue.header.get_qos() == control_flags::QOS0 {
+                        1
+                    } else {
+                        0
+                    }
+                    .to_string(),
                     if unvalue.header.get_retain() { 1 } else { 0 }.to_string(),
                     String::from_utf8_lossy(&unvalue.variable_header.topic_name).to_string(),
                     unvalue.payload.message,
